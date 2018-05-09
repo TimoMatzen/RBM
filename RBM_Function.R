@@ -1,30 +1,92 @@
 ##############################################################
 ###############Restricted Boltzmann Machine###################
 ##############################################################
-install.packages('tensorflow')
-library(tensorflow)
-datasets <- tf$contrib$learn$datasets
-mnist <- datasets$mnist$read_data_sets("MNIST-data", one_hot = TRUE)
+
 # Load in the train-data of the MNIST data-set
 train <- read.csv('train.csv', nrows = 200)
 # Put the data in a matrix of shap features * samples
-m <- matrix(unlist(train[,-1]), nrow =784,ncol = 200, byrow = T)/255
+train <- matrix(unlist(train[,-1]), nrow =784,ncol = 200, byrow = T)/255
 
-image(matrix(m[,10], nrow = 28),col=grey.colors(255))
+image(matrix(train[,10], nrow = 28),col=grey.colors(255))
+n_hidden = 500
 
-# Initialize RBM function
 
-RBM <- function(train,n_hidden, learning_rate, n_iter){
+
+## Initialize RBM function
+RBM <- function(train, n_hidden, learning_rate = 0.1, n_iter, plot = FALSE){
+  
+  # PLot the original data:
+  if(plot == TRUE){
+    image(matrix(train[,10], nrow = 28),col=grey.colors(255))
+    title(main = "Original data", font.main = 4)
+  }
+  
   # Intialize the hidden layers (only one layer):
-  inv_layer <- matrix(0,nrow = n_hidden, ncol = 1)
+  inv_layer <- matrix(0, nrow = n_hidden, ncol = 1)
   # Initialize the bias terms:
   inv_bias <- matrix(0, nrow = n_hidden, ncol = 1)
+  
   # Taking a uniform sample with size train:
-  samp_unif <- matrix(runif(dim(m)[1]*dim(m)[2]), nrow = dim(m)[1], ncol = dim(m)[2])
+  samp_unif <- matrix(runif(dim(train)[1] * dim(train)[2]), nrow = dim(train)[1], ncol = dim(train)[2])
   # Turn on when train > uniform sample:
-  train_bin <- ifelse( m > samp_unif,1,0)
+  train_bin <- ifelse(train > samp_unif, 1, 0)
   # Visible bias:
-  vis_bias <- log(rowMeans(train_bin)/(1-rowMeans(train_bin)))
+  vis_bias <- log(rowMeans(train_bin) / (1 - rowMeans(train_bin)) )
   # Make bias 0 when -infinity:
   vis_bias <- ifelse(vis_bias == -Inf, 0,vis_bias)
+  # Initialize the weights, n_features * n_hidden:
+  weights <- matrix(rnorm(nrow(train)*n_hidden, 0, .01), nrow = nrow(train), ncol = n_hidden)
+  
+  d <- 0
+  
+  # Start contrastive divergence, k = 1:
+  for (i in 1:n_iter){
+    d <- d+1
+    
+    # At iteration set visible layer to random sample of train:
+    V0 <- matrix(train[,sample((1:ncol(train)),1)], nrow= nrow(train))
+    
+    ## Contrastive Divergence (k = 1)
+    # Negative phase CD:
+    H0 <- 1/(1 + exp(-(inv_bias + t(t(V0) %*% weights))) )
+    # Binarize the hidden layer:
+    H0 <- ifelse(H0 > runif(nrow(H0)),1,0)
+    # Calculate negative phase
+    neg_phase <- V0 %*% t(H0)
+    
+    # Positive phase CD:
+    V1 <- 1/(1 + exp(-(vis_bias + t(t(H0) %*% t(weights)))) )
+    H1 <- 1/(1 + exp(-(inv_bias + t(t(V1) %*% weights))) )
+    pos_phase <- V1 %*% t(H1)
+    
+    # Calculate gradients:
+    grad_weights <- neg_phase - pos_phase
+    grad_vis_bias <- V0 - V1
+    grad_inv_bias <- H0 - H1
+    
+    # Update bias and weights:
+    weights <- weights + (learning_rate * grad_weights)
+    vis_bias <- vis_bias + (learning_rate * grad_vis_bias)
+    inv_bias <- inv_bias + (learning_rate * grad_inv_bias)
+    
+    # Adding plots of learning if plot = TRUE:
+    if(i == 1 & plot == TRUE){
+      image(matrix(V1, nrow = 28),col=grey.colors(255))
+      title(main = paste0('Data at iteration ', i), font.main = 4)
+    }
+    if(d == 100 & plot == TRUE){
+      # Plot figure at each 100 epoc
+      image(matrix(V1, nrow = 28),col=grey.colors(255))
+      title(main = paste0('Data at iteration ', i), font.main = 4)
+      d <- 0
+      
+    }
+    
+  }
+  
+  return(weights)
 }
+
+weights <- RBM(train = train, n_hidden = 30, n_iter = 10000, learning_rate = .3)
+
+
