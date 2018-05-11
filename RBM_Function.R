@@ -4,6 +4,15 @@
 
 # Load in the train-data of the MNIST data-set
 train <- read.csv('train.csv', nrows = 200)
+labels <- train$label
+
+# Converting labels to binary feature vectors
+y <- matrix(0,length(labels), 10)
+
+# Loop over all labels and binarize:
+for(i in 1:length(labels)){
+  y[i, labels[i]+1] <- 1
+}
 
 # Put the data in a matrix of shap features * samples
 train <- matrix(unlist(train[,-1]), nrow =784,ncol = 200, byrow = T)/255
@@ -109,8 +118,9 @@ RBM <- function(train, n_hidden, learning_rate = 0.1, n_iter,
 }
 
 # Test the function:
-weights <- RBM(train = train, n_hidden = 30, n_iter = 10000, learning_rate = .1, plot = TRUE,
-               mom = 0.9)
+weights <- RBM(train = train, n_hidden = 30, n_iter = 10000, learning_rate = .005, plot = TRUE,
+               mom = 0.5)
+
 
 weights0 <-  matrix(rnorm(nrow(train)*n_hidden, 0, .01), nrow = nrow(train), ncol = n_hidden)
 
