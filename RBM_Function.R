@@ -2,6 +2,9 @@
 ###############Restricted Boltzmann Machine###################
 ##############################################################
 
+# TODO: Make possibility for stacking boltzmann machines.
+# Use greedy pretraining.
+
 ## Initialize train-data MNIST
 # Load in the train-data of the MNIST data-set:
 train1 <- read.csv('train.csv', nrows = 10000)
@@ -41,9 +44,16 @@ LabelBinarizer <- function(labels) {
   return(y)
 }
 
+# Deep RBM function:
+DeepRBM <- function(train, y, n.iter, n.hidden, lerning.rate = 0.1) {
+  # Trains a 3 layer Deep Restricted Boltzmann Machine
+  #
+  
+}
+
 ## Initialize RBM function
 RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1, 
-                plot = FALSE){
+                plot = FALSE, supervised = FALSE){
   # Trains a Restricted Boltzmann Machine.
   #
   # Args:
@@ -63,16 +73,10 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
   #   the bias of the invisible and visible layers.
   # PLot the original data:
   
-  # Make binarized vectors of the labels
-  y <- LabelBinarizer(y)
-  # Initialize number of labels:
-  n.labels <- ncol(y)
-  
   # Intialize the hidden layers (only one layer):
   inv.layer <- matrix(0, nrow = n.hidden, ncol = 1)
   # Initialize the bias terms:
   inv.bias <- matrix(0, nrow = n.hidden, ncol = 1)
-  
   # Check whether n.iter is devicable by ten and if so initialize plot.epoch:
   if (plot == TRUE) {
     if ((n.iter %% 10) == 0) {
@@ -80,9 +84,9 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
     } else{
       print ('Number of iterations was not devicable by ten: plots are turned off')
       plot <- FALSE
+      plot.epoch <- 0
     }
   }
-  
   # Taking a uniform sample with size train for visible bias:
   samp.unif <- matrix(runif(dim(train)[1] * dim(train)[2]), nrow = dim(train)[1], ncol = dim(train)[2])
   # Turn on when train > uniform sample:
@@ -91,19 +95,24 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
   vis.bias <- log(rowMeans(train.bin) / (1 - rowMeans(train.bin)) )
   # Make bias 0 when -infinity:
   vis.bias <- ifelse(vis.bias == -Inf, 0,vis.bias)
-  # Initialize label bias:
-  y.bias <- log(colMeans(y) / (1- colMeans(y)))
   
   # Initialize the weights, n.features * n.hidden:
   weights <- matrix(rnorm(nrow(train)*n.hidden, 0, .01), nrow = nrow(train), ncol = n.hidden)
   
-  # Initialize the weights for the labels, n.labels * n.hidden
-  y.weights <- matrix(rnorm(n.labels * n.hidden, 0, 01), nrow = n.labels, ncol = n.hidden)
-  
+  # Initialize the labels, weights and bias for the labels if supervised = TRUE
+  if (supervised == TRUE) {
+    # Make binarized vectors of the labels
+    y <- LabelBinarizer(y)
+    # Initialize number of labels:
+    n.labels <- ncol(y)
+    y.weights <- matrix(rnorm(n.labels * n.hidden, 0, 01), nrow = n.labels, ncol = n.hidden)
+    # Initialize label bias:
+    y.bias <- log(colMeans(y) / (1- colMeans(y)))
+  }
   # PLot the original data:
   if(plot == TRUE){
     par(mfrow = c(3,10), mar = c(3,1,1,1))
-    for(i in 1:n.hidden){
+    for(i in 1:n.hidden) {
       image(matrix(weights[,i], nrow = 28),col=grey.colors(255))
       title(main = paste0('Hidden node ', i), font.main = 4)
     }
@@ -117,6 +126,7 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
   vel.vis.bias <- matrix(0, nrow = nrow(train), ncol = 1)
   vel.inv.bias <- matrix(0, nrow = n.hidden, ncol = 1)
   
+  
   # Start contrastive divergence, k = 1:
   for (i in 1:n.iter){
     # Update plot counter
@@ -124,36 +134,58 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
     
     # Take a sample at each iteration
     samp <- sample((1:ncol(train)),1)
+    
     # At iteration set visible layer to random sample of train:
     V0 <- matrix(train[,samp], nrow= nrow(train))
-    Y0 <- matrix(y[samp,], nrow = n.labels)
+    
+    # At a layer with labels if supervised = TRUE
+    if (supervised == TRUE) {
+      Y0 <- matrix(y[samp,], nrow = n.labels)
     
     ## Contrastive Divergence (k = 1)
     # Positive phase CD:
     H0 <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights) + t(t(Y0) %*% y.weights))) )
+    } else {
+      H0 <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
+    }
     # Binarize the hidden layer:
     H0 <- ifelse(H0 > runif(nrow(H0)),1,0)
+    
     # Calculate positive phase
     pos.phase <- V0 %*% t(H0)
-    pos.phase.y <- Y0 %*% t(H0)
+    if (supervised == TRUE) {
+      pos.phase.y <- Y0 %*% t(H0)
+    }
     
     # Negative  phase CD:
     V1 <- 1/(1 + exp(-(vis.bias + t(t(H0) %*% t(weights)))) )
-    Y1 <- 1/(1 + exp(-(y.bias + t(t(H0) %*% t(y.weights)))) )
+    if (supervised == TRUE) {
+      Y1 <- 1/(1 + exp(-(y.bias + t(t(H0) %*% t(y.weights)))) )
+      H1 <- 1/(1 + exp(-(inv.bias + t(t(V1) %*% weights) + t(t(Y1) %*% y.weights))) )
+    } else {
+      H1 <- 1/(1 + exp(-(inv.bias + t(t(V1) %*% weights))) )
+    }
     
-    H1 <- 1/(1 + exp(-(inv.bias + t(t(V1) %*% weights) + t(t(Y1) %*% y.weights))) )
     # Calculate negative phase:
     neg.phase <- V1 %*% t(H1)
-    neg.phase.y <- Y1 %*% t(H1)
-    
+    if (supervised == TRUE) {
+      neg.phase.y <- Y1 %*% t(H1)
+    }
     ## Calculate the gradients
     # Calculate gradients for the weights:
     grad.weights <- pos.phase - neg.phase
-    grad.y.weights <- pos.phase.y - neg.phase.y
+    
+    if (supervised == TRUE) {
+      # Calculate gradients for y.weigths:
+      grad.y.weights <- pos.phase.y - neg.phase.y
+      # Calculate gradients for y.bias
+      grad.y.bias <- Y0 - Y1
+    }
+    
     # Calculate gradients for the bias terms
     grad.vis.bias <- V0 - V1
     grad.inv.bias <- H0 - H1
-    grad.y.bias <- Y0 - Y1
+    
     
     # TODO: Make function work with momentum
     #
@@ -164,10 +196,14 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
     
     # Update bias and weights:
     weights <- weights + (learning.rate * grad.weights) 
-    y.weights <- y.weights + (learning.rate * grad.y.weights)
     vis.bias <- vis.bias + (learning.rate * grad.vis.bias) 
     inv.bias <- inv.bias + (learning.rate * grad.inv.bias) 
-    y.bias <- y.bias + (learning.rate * grad.y.bias)
+    
+    # Update y bias and weights if supervised = T
+    if (supervised == TRUE) {
+      y.bias <- y.bias + (learning.rate * grad.y.bias)
+      y.weights <- y.weights + (learning.rate * grad.y.weights)
+    }
     
     # Plot learning of hidden nodes at every plot.epoch:
     if(plot.counter == plot.epoch & plot == TRUE){
@@ -181,13 +217,20 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
       
     }
   }
-  return(list('trained.weights' = weights,'trained.y.weights' = y.weights, 'trained.y.bias' = y.bias, 
+  if (supervised == TRUE) {
+    return(list('trained.weights' = weights,'trained.y.weights' = y.weights, 'trained.y.bias' = y.bias, 
               'trained.inv.bias' = inv.bias, 'trained.vis.bias' = vis.bias))
+  } else {
+    return(list('trained.weights' = weights,
+                'trained.inv.bias' = inv.bias, 'trained.vis.bias' = vis.bias))
+    }
 }
 
 
+
 # Test the function:
-par <- RBM(train = train, y = labels, n.hidden = 100, n.iter = 10000, learning.rate = .1, plot = FALSE)
+par <- RBM(train = train, y = labels, n.hidden = 100, n.iter = 1000, learning.rate = .1, plot = TRUE,
+           supervised = FALSE)
 
 
 # Create the predict function:
