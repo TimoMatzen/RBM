@@ -44,16 +44,16 @@ LabelBinarizer <- function(labels) {
   return(y)
 }
 
-# Deep RBM function:
-DeepRBM <- function(train, y, n.iter, n.hidden, lerning.rate = 0.1) {
-  # Trains a 3 layer Deep Restricted Boltzmann Machine
-  #
-  
+# Function for calculating hidden layer:
+VisToHidden <- function(vis, inv.bias, weights){
+  V0 <- matrix(vis, nrow = length(vis), ncol = 1 )
+  H <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
+  return(H)
 }
 
 ## Initialize RBM function
-RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1, 
-                plot = FALSE, supervised = FALSE){
+RBM <- function (train, y, n.iter, n.hidden, learning.rate = 0.1, 
+                plot = FALSE, supervised = FALSE, bias) {
   # Trains a Restricted Boltzmann Machine.
   #
   # Args:
@@ -86,15 +86,23 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
       plot <- FALSE
       plot.epoch <- 0
     }
+  } 
+  if (plot == FALSE) {
+    plot.epoch <- FALSE
   }
   # Taking a uniform sample with size train for visible bias:
   samp.unif <- matrix(runif(dim(train)[1] * dim(train)[2]), nrow = dim(train)[1], ncol = dim(train)[2])
   # Turn on when train > uniform sample:
   train.bin <- ifelse(train > samp.unif, 1, 0)
-  # Visible bias:
-  vis.bias <- log(rowMeans(train.bin) / (1 - rowMeans(train.bin)) )
-  # Make bias 0 when -infinity:
-  vis.bias <- ifelse(vis.bias == -Inf, 0,vis.bias)
+  
+  if (missing(bias) ) {
+    # Visible bias:
+    vis.bias <- log(rowMeans(train.bin) / (1 - rowMeans(train.bin)) )
+    # Make bias 0 when -infinity:
+    vis.bias <- ifelse(vis.bias == -Inf, 0,vis.bias)
+  } else {
+    vis.bias <- bias
+  }
   
   # Initialize the weights, n.features * n.hidden:
   weights <- matrix(rnorm(nrow(train)*n.hidden, 0, .01), nrow = nrow(train), ncol = n.hidden)
@@ -113,7 +121,7 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
   if(plot == TRUE){
     par(mfrow = c(3,10), mar = c(3,1,1,1))
     for(i in 1:n.hidden) {
-      image(matrix(weights[,i], nrow = 28),col=grey.colors(255))
+      image(matrix(weights[,i], nrow = sqrt(nrow(train))), col=grey.colors(255))
       title(main = paste0('Hidden node ', i), font.main = 4)
     }
   }
@@ -122,9 +130,9 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
   plot.counter <- 0
   
   # Initialize velocity at t = 0
-  vel.weights <- matrix(0, nrow = nrow(train), ncol = n.hidden)
-  vel.vis.bias <- matrix(0, nrow = nrow(train), ncol = 1)
-  vel.inv.bias <- matrix(0, nrow = n.hidden, ncol = 1)
+  # vel.weights <- matrix(0, nrow = nrow(train), ncol = n.hidden)
+  # vel.vis.bias <- matrix(0, nrow = nrow(train), ncol = 1)
+  # vel.inv.bias <- matrix(0, nrow = n.hidden, ncol = 1)
   
   
   # Start contrastive divergence, k = 1:
@@ -132,18 +140,17 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
     # Update plot counter
     plot.counter <- plot.counter + 1
     
-    # Take a sample at each iteration
-    samp <- sample((1:ncol(train)),1)
     
     # At iteration set visible layer to random sample of train:
-    V0 <- matrix(train[,samp], nrow= nrow(train))
+    V0 <- matrix(train[,i], nrow= nrow(train))
     
     # At a layer with labels if supervised = TRUE
     if (supervised == TRUE) {
-      Y0 <- matrix(y[samp,], nrow = n.labels)
+      Y0 <- matrix(y[i,], nrow = n.labels)
     
     ## Contrastive Divergence (k = 1)
     # Positive phase CD:
+      
     H0 <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights) + t(t(Y0) %*% y.weights))) )
     } else {
       H0 <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
@@ -209,7 +216,7 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
     if(plot.counter == plot.epoch & plot == TRUE){
       par(mfrow = c(3,10), mar = c(3,1,1,1))
       for(i in 1:n.hidden){
-        image(matrix(weights[,i], nrow = 28),col=grey.colors(255))
+        image(matrix(weights[,i], nrow = sqrt(nrow(train))), col=grey.colors(255))
         title(main = paste0('Hidden node ', i), font.main = 4)
       }
       # Reset the plot counter:
@@ -226,16 +233,50 @@ RBM <- function(train,y, n.iter, n.hidden, learning.rate = 0.1,
     }
 }
 
-
+# Wrapper function to create a deep belief net:
+DeepRBN <- function(train, y, n.iter, n.hidden.first,n.hidden.second,n.hidden.third, learning.rate = 0.1) {
+  # Trains a 3 layer Deep Restricted Boltzmann Machine
+  #
+  # Always 3 layers, last layer is for classification.
+  n.layers <- 3
+  DBN <- list()
+  for (i in 1: n.layers) {
+    name <- paste('RBM', i, sep='')
+    if (i == 1) {
+      # Calculating first layer:
+      DBN[[name]] <- RBM(train = train, y = labels, n.hidden = n.hidden.first, n.iter = n.iter,
+                         learning.rate = learning.rate, plot = FALSE, supervised = FALSE)
+    } else if (i != n.layers) {
+      # Create samples
+      sample <- matrix(apply(train[, 1:n.iter], 2, VisToHidden, DBN[[i-1]]$trained.inv.bias, DBN[[i-1]]$trained.weights),
+                   nrow = n.hidden.first, ncol = n.iter, byrow = FALSE)
+      
+      # Learning all the other layers inbetween:
+      DBN[[name]] <- RBM(sample, y = labels, n.hidden = n.hidden.second,  n.iter = n.iter,  
+                         learning.rate = learning.rate, plot = FALSE, 
+                         bias = DBN[[i-1]]$trained.inv.bias, supervised = FALSE)
+    } else {
+      sample2 <- matrix(apply(sample, 2, VisToHidden, DBN[[i-1]]$trained.inv.bias, DBN[[i-1]]$trained.weights),
+                        nrow = n.hidden.second, ncol = n.iter, byrow = FALSE)
+      
+      # Learning last layer supervised:
+      DBN[[name]] <- RBM(sample2, y = labels, n.hidden = n.hidden.third, n.iter = n.iter, 
+                         learning.rate = learning.rate, plot = FALSE, 
+                         bias = DBN[[i-1]]$trained.inv.bias, supervised = TRUE)
+      
+    }
+  }
+  return(DBN)
+}
 
 # Test the function:
 par <- RBM(train = train, y = labels, n.hidden = 100, n.iter = 1000, learning.rate = .1, plot = TRUE,
            supervised = FALSE)
 
+DBN <- DeepRBN(train = train, y = labels, n.hidden = 100, n.iter = 1000, n.layers = 3, learning.rate = .1)
 
 # Create the predict function:
-PredictRBM <- function(test, labels, trained.weights, trained.y.weights,
-                       trained.y.bias, trained.inv.bias, trained.vis.bias) {
+PredictRBM <- function(test, labels, model, deep = FALSE) {
   # Function to predict on test-data given trained RBM weights and bias terms for the hidden and visible layer
   # 
   # Args:
@@ -258,15 +299,31 @@ PredictRBM <- function(test, labels, trained.weights, trained.y.weights,
   rownames(y) <- unique(labels)
   # Add a column to save the energies:
   y <- cbind(y,rep(0,nrow(y)))
+  
   for (i in 1:ncol(test)) {
     # Initialize visible unit:
     V <- matrix(test[, i], ncol = 1)
-    for (j in 1:nrow(y)) {
-      # Calculate the hidden units for each class:
-      H <- 1/(1 + exp(-(trained.inv.bias + t(t(V) %*% trained.weights) + t(y[j,1:10] %*% trained.y.weights))) )
-      # Calculate energy for each class:
-      y[j,11] <- ( (-t(H) %*% t(trained.weights) %*% V) -(t(trained.vis.bias) %*% V) -(t(trained.inv.bias) %*% H) -
-        (t(trained.y.bias) %*% y[j,1:10]) - (t(H) %*% t(trained.y.weights) %*% y[j,1:10]) )
+    if (deep == FALSE) {
+      for (j in 1:nrow(y)) {
+        # Calculate the hidden units for each class:
+        H <- 1/(1 + exp(-(trained.inv.bias + t(t(V) %*% trained.weights) + t(y[j,1:10] %*% trained.y.weights))) )
+        # Calculate energy for each class:
+        y[j,11] <- ( (-t(H) %*% t(trained.weights) %*% V) -(t(trained.vis.bias) %*% V) -(t(trained.inv.bias) %*% H) -
+          (t(trained.y.bias) %*% y[j,1:10]) - (t(H) %*% t(trained.y.weights) %*% y[j,1:10]) )
+      }
+    } else {
+      # Calculate first hidden:
+      H1 <- VisToHidden(V, model$RBM1$trained.inv.bias, model$RBM1$trained.weights)
+      # Calculate second hidden:
+      H2 <- VisToHidden(H1, model$RBM2$trained.inv.bias, model$RBM2$trained.weights )
+      for (j in 1:nrow(y)) {
+        # Calculate third hidden layer for each class:
+        H3 <- 1/(1 + exp(-(model$RBM3$trained.inv.bias + t(t(H2) %*% model$RBM3$trained.weights) 
+                           + t(y[j,1:10] %*% model$RBM3$trained.y.weights))) )
+        # Calculate the energy for each class:
+        y[j,11] <- ( (-t(H3) %*% t(model$RBM3$trained.weights) %*% H2) -(t(model$RBM3$trained.vis.bias) %*% H2) -(t(model$RBM3$trained.inv.bias) %*% H3) -
+                       (t(model$RBM3$trained.y.bias) %*% y[j,1:10]) - (t(H3) %*% t(model$RBM3$trained.y.weights) %*% y[j,1:10]) )
+      }
     }
     # Predict the label with the highest energy
     result.dat[i,2] <- as.numeric(rownames(y)[y[, 11] == min(y[, 11])])
@@ -281,4 +338,4 @@ PredictRBM <- function(test, labels, trained.weights, trained.y.weights,
 # Test performance:
 Performance <- PredictRBM(test = test, labels = test_y, par[[1]], par[[2]], par[[3]], par[[4]], par[[5]])
 
-
+PredictRBM(test[,1:20], labels = test_y[1:20], model = DBN, deep = TRUE)
