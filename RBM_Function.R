@@ -3,7 +3,6 @@
 ##############################################################
 
 # TODO: Make possibility for stacking boltzmann machines.
-# Use greedy pretraining.
 
 ## Initialize train-data MNIST
 # Load in the train-data of the MNIST data-set:
@@ -44,11 +43,56 @@ LabelBinarizer <- function(labels) {
   return(y)
 }
 
+
+
 # Function for calculating hidden layer:
-VisToHidden <- function(vis, inv.bias, weights){
+VisToHid <- function(vis, inv.bias, weights, y, y.weights){
+  # Function for calculating a hidden layer.
+  #
+  # Args:
+  #   vis: Visual layer, or hidden layer from previous layer in DBN
+  #   inv.bias: Trained invisible bias (use RBM)
+  #   weights: Trained weights (use RBM)
+  #   y: Label vector if only when training an RBM for classification
+  #   y.weights: Label weights matrix, only neccessary when training an RBM for classification.
+  #
+  # Returns:
+  #   Returns a hidden layer calculated with the trained RBM weights and bias terms.
+  #
+  # Initialize the visual, or i-1 layer
   V0 <- matrix(vis, nrow = length(vis), ncol = 1 )
-  H <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
+  Y0 <- matrix(y, nrow = length(y), ncol = 1)
+  if(missing(y) & missing(y.weights)) {
+    # Calculate the hidden layer with the trained weights and bias
+    H <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
+  } else {
+    H <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights) + t(t(Y0) %*% y.weights))) )
+  }
   return(H)
+}
+
+# Function for reconstructing visible layer:
+HidToVis <- function(inv, vis.bias, weights, y.weights, y.bias){
+  # Function for reconstructing a visible layer.
+  #
+  # Args:
+  #   inv: Invisible layer
+  #   vis.bias: Trained visible layer bias (use RBM)
+  #   weights: Trained weights (use RBM)
+  #   y.weights: Label weights, only nessecessary when training a classification RBM.
+  #
+  # Returns:
+  #   Returns a vector with reconstructed visible layer or reconstructed labels.
+  #
+  if(missing(y.weights) & missing(y.bias)) {
+    # Reconstruct only the visible layer when y.weights is missing
+    V <- 1/(1 + exp(-(vis.bias + t(t(inv) %*% t(weights)))) )
+    return(V1)
+  } else {
+    # Reconstruct visible and labels if y.weights
+    Y <- 1/(1 + exp(-(y.bias + t(t(inv) %*% t(y.weights)))) )
+    return(Y)
+  }
 }
 
 ## Initialize RBM function
@@ -125,105 +169,94 @@ RBM <- function (train, y, n.iter, n.hidden, learning.rate = 0.1,
       title(main = paste0('Hidden node ', i), font.main = 4)
     }
   }
-  
   # Initialize counter for the plotting:
   plot.counter <- 0
-  
+  ###################################################################
+  ##TODO: Add velocity to improve learning.
   # Initialize velocity at t = 0
   # vel.weights <- matrix(0, nrow = nrow(train), ncol = n.hidden)
   # vel.vis.bias <- matrix(0, nrow = nrow(train), ncol = 1)
   # vel.inv.bias <- matrix(0, nrow = n.hidden, ncol = 1)
-  
-  
+  ##################################################################
+  #TODO: Create seperate function for contrastive divergence
   # Start contrastive divergence, k = 1:
   for (i in 1:n.iter){
     # Update plot counter
     plot.counter <- plot.counter + 1
-    
-    
     # At iteration set visible layer to random sample of train:
     V0 <- matrix(train[,i], nrow= nrow(train))
-    
     # At a layer with labels if supervised = TRUE
     if (supervised == TRUE) {
       Y0 <- matrix(y[i,], nrow = n.labels)
-    
-    ## Contrastive Divergence (k = 1)
-    # Positive phase CD:
-      
-    H0 <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights) + t(t(Y0) %*% y.weights))) )
+      H0 <- VisToHid(V0, inv.bias, weights, y.weights)
     } else {
-      H0 <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
+      H0 <- VisToHid(V0, inv.bias, weights)
     }
     # Binarize the hidden layer:
     H0 <- ifelse(H0 > runif(nrow(H0)),1,0)
-    
     # Calculate positive phase
     pos.phase <- V0 %*% t(H0)
     if (supervised == TRUE) {
       pos.phase.y <- Y0 %*% t(H0)
     }
-    
     # Negative  phase CD:
-    V1 <- 1/(1 + exp(-(vis.bias + t(t(H0) %*% t(weights)))) )
+    # Reconstruct visible layer
+    V1 <- HidToVis(H0, vis.bias, weights)
     if (supervised == TRUE) {
-      Y1 <- 1/(1 + exp(-(y.bias + t(t(H0) %*% t(y.weights)))) )
-      H1 <- 1/(1 + exp(-(inv.bias + t(t(V1) %*% weights) + t(t(Y1) %*% y.weights))) )
+      # Reconstruct labels
+      Y1 <- HidToVis(H0, vis.bias, weights, y.weights, y.bias)
+      # Reconstruct hidden layer supervised
+      H1 <- VisToHid(V1, inv.bias, weights, Y1, y.weights)
     } else {
-      H1 <- 1/(1 + exp(-(inv.bias + t(t(V1) %*% weights))) )
+      # Reconstruct hidden layer unsupervised
+      H1 <- VisToHid(V1, inv.bias, weights)
     }
-    
     # Calculate negative phase:
     neg.phase <- V1 %*% t(H1)
     if (supervised == TRUE) {
+      # Calculate negative phase y:
       neg.phase.y <- Y1 %*% t(H1)
     }
     ## Calculate the gradients
     # Calculate gradients for the weights:
     grad.weights <- pos.phase - neg.phase
-    
     if (supervised == TRUE) {
       # Calculate gradients for y.weigths:
       grad.y.weights <- pos.phase.y - neg.phase.y
       # Calculate gradients for y.bias
       grad.y.bias <- Y0 - Y1
     }
-    
     # Calculate gradients for the bias terms
     grad.vis.bias <- V0 - V1
     grad.inv.bias <- H0 - H1
-    
-    
-    # TODO: Make function work with momentum
-    #
+    ##################################################################
+    ## TODO: Make function work with momentum
     # Trying to use velocity instead of the gradient en learning_rate:
     #vel_weights <- (mom * vel_weights) + (grad_weights)
     #vel_vis_bias <- (mom * vel_vis_bias) + (grad_vis_bias)
     #vel_inv_bias <- (mom * vel_inv_bias) + (grad_inv_bias)
-    
+    ##################################################################
     # Update bias and weights:
     weights <- weights + (learning.rate * grad.weights) 
     vis.bias <- vis.bias + (learning.rate * grad.vis.bias) 
     inv.bias <- inv.bias + (learning.rate * grad.inv.bias) 
-    
     # Update y bias and weights if supervised = T
     if (supervised == TRUE) {
       y.bias <- y.bias + (learning.rate * grad.y.bias)
       y.weights <- y.weights + (learning.rate * grad.y.weights)
     }
-    
     # Plot learning of hidden nodes at every plot.epoch:
-    if(plot.counter == plot.epoch & plot == TRUE){
+    if(plot.counter == plot.epoch & plot == TRUE) {
       par(mfrow = c(3,10), mar = c(3,1,1,1))
-      for(i in 1:n.hidden){
+      for(i in 1:n.hidden) {
         image(matrix(weights[,i], nrow = sqrt(nrow(train))), col=grey.colors(255))
         title(main = paste0('Hidden node ', i), font.main = 4)
       }
       # Reset the plot counter:
       plot.counter <- 0
-      
     }
   }
+  # Return list with all the trained variables:
   if (supervised == TRUE) {
     return(list('trained.weights' = weights,'trained.y.weights' = y.weights, 'trained.y.bias' = y.bias, 
               'trained.inv.bias' = inv.bias, 'trained.vis.bias' = vis.bias))
@@ -270,8 +303,8 @@ DeepRBN <- function(train, y, n.iter, n.hidden.first,n.hidden.second,n.hidden.th
 }
 
 # Test the function:
-par <- RBM(train = train, y = labels, n.hidden = 100, n.iter = 1000, learning.rate = .1, plot = TRUE,
-           supervised = FALSE)
+par <- RBM(train = train, y = labels, n.hidden = 100, n.iter = 10000, learning.rate = .1, plot = TRUE,
+           supervised = TRUE)
 
 DBN <- DeepRBN(train = train, y = labels, n.hidden = 100, n.iter = 1000, n.layers = 3, learning.rate = .1)
 
@@ -338,4 +371,4 @@ PredictRBM <- function(test, labels, model, deep = FALSE) {
 # Test performance:
 Performance <- PredictRBM(test = test, labels = test_y, par[[1]], par[[2]], par[[3]], par[[4]], par[[5]])
 
-PredictRBM(test[,1:20], labels = test_y[1:20], model = DBN, deep = TRUE)
+PredictRBM(test[,100:200], labels = test_y[100:200], model = DBN, deep = TRUE)
