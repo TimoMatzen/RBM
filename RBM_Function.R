@@ -43,10 +43,8 @@ LabelBinarizer <- function(labels) {
   return(y)
 }
 
-
-
 # Function for calculating hidden layer:
-VisToHid <- function(vis, inv.bias, weights, y, y.weights){
+VisToHid <- function(vis, inv.bias, weights, y, y.weights) {
   # Function for calculating a hidden layer.
   #
   # Args:
@@ -61,18 +59,18 @@ VisToHid <- function(vis, inv.bias, weights, y, y.weights){
   #
   # Initialize the visual, or i-1 layer
   V0 <- matrix(vis, nrow = length(vis), ncol = 1 )
-  Y0 <- matrix(y, nrow = length(y), ncol = 1)
   if(missing(y) & missing(y.weights)) {
     # Calculate the hidden layer with the trained weights and bias
     H <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights))) )
   } else {
+    Y0 <- matrix(y, nrow = length(y), ncol = 1)
     H <- 1/(1 + exp(-(inv.bias + t(t(V0) %*% weights) + t(t(Y0) %*% y.weights))) )
   }
   return(H)
 }
 
 # Function for reconstructing visible layer:
-HidToVis <- function(inv, vis.bias, weights, y.weights, y.bias){
+HidToVis <- function(inv, vis.bias, weights, y.weights, y.bias) {
   # Function for reconstructing a visible layer.
   #
   # Args:
@@ -87,11 +85,90 @@ HidToVis <- function(inv, vis.bias, weights, y.weights, y.bias){
   if(missing(y.weights) & missing(y.bias)) {
     # Reconstruct only the visible layer when y.weights is missing
     V <- 1/(1 + exp(-(vis.bias + t(t(inv) %*% t(weights)))) )
-    return(V1)
+    return(V)
   } else {
     # Reconstruct visible and labels if y.weights
     Y <- 1/(1 + exp(-(y.bias + t(t(inv) %*% t(y.weights)))) )
     return(Y)
+  }
+}
+
+# Function for calculating the energy of the machine:
+Energy <- function(vis, vis.bias, inv, inv.bias, weights, y, y.weights, y.bias) {
+  # Function for calculating the energy of a trained RBM
+  #
+  # Args:
+  #   vis: visible layer
+  #   vis.bias: trained visible bias (use RBM)
+  #   inv: invisible layer
+  #   inv.bias: trained invisible bias (use RBM)
+  #   y: label vector (binary)
+  #   y.weights: trained label weights (use RBM)
+  #   y.bias: trained label bias (use RBM)
+  #
+  # Returns:
+  #   The energy of the RBM machine for label y
+  #
+  # Calculate the energy with the parameters
+  E<- ((-t(inv) %*% t(weights) %*% vis) -(t(vis.bias) %*% vis) -(t(inv.bias) %*% inv) -
+      (t(y.bias) %*% y) - (t(inv) %*% t(y.weights) %*% y))
+  # Return the energy:
+  return(E)
+  
+}
+
+# Function for doing contrastive divergence
+CD <- function(vis, weights, vis.bias, inv.bias, y, y.weights, y.bias, k = 1) {
+  # Start positive phase
+  if (missing(y)) {
+    # Calculate hidden layer
+    H0 <- VisToHid(V0, inv.bias, weights)
+  } else {
+    # Add a layer with labels if y is provided
+    H0 <- VisToHid(V0, inv.bias, weights, Y0, y.weights)
+  }
+  # Binarize the hidden layer:
+  H0 <- ifelse(H0 > runif(nrow(H0)),1,0)
+  # Calculate positive phase
+  pos.phase <- V0 %*% t(H0)
+  if (!missing(y)) {
+    pos.phase.y <- Y0 %*% t(H0)
+  }
+  # Start negative  phase
+  # Reconstruct visible layer
+  V1 <- HidToVis(H0, vis.bias, weights)
+  if (missing(y)) {
+    # Reconstruct hidden layer unsupervised
+    H1 <- VisToHid(V1, inv.bias, weights)
+  } else {
+    # Reconstruct labels if y is provided
+    Y1 <- HidToVis(H0, vis.bias, weights, y.weights, y.bias)
+    # Reconstruct hidden layer supervised
+    H1 <- VisToHid(V1, inv.bias, weights, Y1, y.weights)
+  }
+  # Calculate negative phase:
+  neg.phase <- V1 %*% t(H1)
+  if (!missing(y)) {
+    # Calculate negative phase y
+    neg.phase.y <- Y1 %*% t(H1)
+  }
+  ## Calculate the gradients
+  # Calculate gradients for the weights:
+  grad.weights <- pos.phase - neg.phase
+  # Calculate gradients for the bias terms
+  grad.vis.bias <- V0 - V1
+  grad.inv.bias <- H0 - H1
+  if (!missing(y)) {
+    # Calculate gradients for y.weigths
+    grad.y.weights <- pos.phase.y - neg.phase.y
+    # Calculate gradients for y.bias
+    grad.y.bias <- Y0 - Y1
+    # Return list with  gradients supervised
+    return(list('grad.weights' = grad.weights, 'grad.vis.bias' = grad.vis.bias, 'grad.inv.bias' = grad.inv.bias,
+                'grad.y.weights' = grad.y.weights, grad.y.bias))
+  } else {
+    # Return list with gradients unsupervised
+    return(list('grad.weights' = grad.weights, 'grad.vis.bias' = grad.vis.bias, 'grad.inv.bias' = grad.inv.bias))
   }
 }
 
@@ -188,7 +265,7 @@ RBM <- function (train, y, n.iter, n.hidden, learning.rate = 0.1,
     # At a layer with labels if supervised = TRUE
     if (supervised == TRUE) {
       Y0 <- matrix(y[i,], nrow = n.labels)
-      H0 <- VisToHid(V0, inv.bias, weights, y.weights)
+      H0 <- VisToHid(V0, inv.bias, weights, Y0, y.weights)
     } else {
       H0 <- VisToHid(V0, inv.bias, weights)
     }
@@ -281,7 +358,7 @@ DeepRBN <- function(train, y, n.iter, n.hidden.first,n.hidden.second,n.hidden.th
                          learning.rate = learning.rate, plot = FALSE, supervised = FALSE)
     } else if (i != n.layers) {
       # Create samples
-      sample <- matrix(apply(train[, 1:n.iter], 2, VisToHidden, DBN[[i-1]]$trained.inv.bias, DBN[[i-1]]$trained.weights),
+      sample <- matrix(apply(train[, 1:n.iter], 2, VisToHid, DBN[[i-1]]$trained.inv.bias, DBN[[i-1]]$trained.weights),
                    nrow = n.hidden.first, ncol = n.iter, byrow = FALSE)
       
       # Learning all the other layers inbetween:
@@ -289,7 +366,7 @@ DeepRBN <- function(train, y, n.iter, n.hidden.first,n.hidden.second,n.hidden.th
                          learning.rate = learning.rate, plot = FALSE, 
                          bias = DBN[[i-1]]$trained.inv.bias, supervised = FALSE)
     } else {
-      sample2 <- matrix(apply(sample, 2, VisToHidden, DBN[[i-1]]$trained.inv.bias, DBN[[i-1]]$trained.weights),
+      sample2 <- matrix(apply(sample, 2, VisToHid, DBN[[i-1]]$trained.inv.bias, DBN[[i-1]]$trained.weights),
                         nrow = n.hidden.second, ncol = n.iter, byrow = FALSE)
       
       # Learning last layer supervised:
@@ -332,30 +409,30 @@ PredictRBM <- function(test, labels, model, deep = FALSE) {
   rownames(y) <- unique(labels)
   # Add a column to save the energies:
   y <- cbind(y,rep(0,nrow(y)))
-  
+  # Loop over all the test data and calculate model predictions
   for (i in 1:ncol(test)) {
     # Initialize visible unit:
     V <- matrix(test[, i], ncol = 1)
     if (deep == FALSE) {
       for (j in 1:nrow(y)) {
         # Calculate the hidden units for each class:
-        H <- 1/(1 + exp(-(trained.inv.bias + t(t(V) %*% trained.weights) + t(y[j,1:10] %*% trained.y.weights))) )
+        H <- VisToHid(V, model$trained.inv.bias, model$trained.weights, y[j, 1:10], model$trained.y.weights)
         # Calculate energy for each class:
-        y[j,11] <- ( (-t(H) %*% t(trained.weights) %*% V) -(t(trained.vis.bias) %*% V) -(t(trained.inv.bias) %*% H) -
-          (t(trained.y.bias) %*% y[j,1:10]) - (t(H) %*% t(trained.y.weights) %*% y[j,1:10]) )
+        y[j, 11] <- Energy(V, model$trained.vis.bias, H, model$trained.inv.bias, 
+                           model$trained.weights, y[j, 1:10], model$trained.y.weights, model$trained.y.bias)
       }
     } else {
       # Calculate first hidden:
-      H1 <- VisToHidden(V, model$RBM1$trained.inv.bias, model$RBM1$trained.weights)
+      H1 <- VisToHid(V, model$RBM1$trained.inv.bias, model$RBM1$trained.weights)
       # Calculate second hidden:
-      H2 <- VisToHidden(H1, model$RBM2$trained.inv.bias, model$RBM2$trained.weights )
+      H2 <- VisToHid(H1, model$RBM2$trained.inv.bias, model$RBM2$trained.weights )
       for (j in 1:nrow(y)) {
         # Calculate third hidden layer for each class:
-        H3 <- 1/(1 + exp(-(model$RBM3$trained.inv.bias + t(t(H2) %*% model$RBM3$trained.weights) 
-                           + t(y[j,1:10] %*% model$RBM3$trained.y.weights))) )
+        H3 <- VisToHid(H2, model$RBM3$trained.inv.bias, model$RBM3$trained.weights, 
+                       y[j, 1:10], model$RBM3$trained.y.weights)
         # Calculate the energy for each class:
-        y[j,11] <- ( (-t(H3) %*% t(model$RBM3$trained.weights) %*% H2) -(t(model$RBM3$trained.vis.bias) %*% H2) -(t(model$RBM3$trained.inv.bias) %*% H3) -
-                       (t(model$RBM3$trained.y.bias) %*% y[j,1:10]) - (t(H3) %*% t(model$RBM3$trained.y.weights) %*% y[j,1:10]) )
+        y[j, 11] <- Energy(H2, model$RBM3$trained.vis.bias, H3, model$RBM3$trained.inv.bias, model$RBM3$trained.weights,
+               y[j, 1:10], model$RBM3$trained.y.weights, model$RBM3$trained.y.bias)
       }
     }
     # Predict the label with the highest energy
