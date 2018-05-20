@@ -156,7 +156,7 @@ CD <- function(vis, weights, y, y.weights) {
   
   if (missing(y) & missing(y.weights) ) {
     # Reconstruct hidden layer unsupervised
-    H1 <- VisToHid(V1, inv.bias, weights)
+    H1 <- VisToHid(V1, weights)
   } else {
     # Reconstruct labels if y is provided
     Y1 <- HidToVis(H0, weights, y,  y.weights )
@@ -183,7 +183,7 @@ CD <- function(vis, weights, y, y.weights) {
     return(list('grad.weights' = grad.weights,'grad.y.weights' = t(grad.y.weights)))
   } else {
     # Return list with gradients unsupervised
-    return(list('grad.weights' = grad.weights,  ))
+    return(list('grad.weights' = grad.weights  ))
   }
 }
 
@@ -336,85 +336,90 @@ DeepBelief <- function(train, y, n.iter, n.hidden.first,n.hidden.second,n.hidden
   return(DBN)
 }
 
-# Standalone function to create a deep belief net:
-DeepBel <- function(train, y, n.iter, n.hidden, layers, learning.rate = 0.1) {
-  # Initialize the weights matrix, tie all layers
-  weights <- vector("list", layers)
-  weights[[1]] <- matrix(rnorm(nrow(train)*n.hidden, 0, .01),
-                         nrow = nrow(train), ncol = n.hidden)
-  weights[[2]] <- weights[[3]] <-  matrix(rnorm(n.hidden*n.hidden, 0, .01),
-                         nrow = n.hidden, ncol = n.hidden)
-  # Initialize visible bias
-  # Taking a uniform sample with size train for visible bias:
-  samp.unif <- matrix(runif(dim(train)[1] * dim(train)[2]), nrow = dim(train)[1], ncol = dim(train)[2])
-  # Turn on when train > uniform sample:
-  train.bin <- ifelse(train > samp.unif, 1, 0)
-  vis.bias <- vector("list", layers)
-  vis.bias[[1]] <- log(rowMeans(train.bin) / (1 - rowMeans(train.bin)) )
-  # Make bias 0 when -infinity:
-  vis.bias[[1]] <- ifelse(vis.bias[[1]] == -Inf, 0,vis.bias[[1]])
-  vis.bias[[2]] <- vis.bias[[3]] <-  matrix(0,nrow = n.hidden,ncol = 1)
-  # Initialize invisible bias
-  inv.bias <- vector("list", layers)
-  inv.bias[[1]] <- inv.bias[[2]] <- inv.bias[[3]]<- matrix(0, nrow = n.hidden, ncol = 1)
-  # Initialize invisible layers
-  inv.layer <- vector("list", layers)
-  inv.layer[[1]] <- inv.layer[[2]] <- inv.layer[[3]] <- matrix(0, nrow = n.hidden, ncol = 1)
-  # Preparing the labels
-  # Make binarized vectors of the labels
-  y <- LabelBinarizer(y)
-  # Initialize number of labels:
-  n.labels <- ncol(y)
-  y.weights <- matrix(rnorm(n.labels * n.hidden, 0, 01), nrow = n.labels, ncol = n.hidden)
-  # Initialize label bias:
-  y.bias <- log(colMeans(y) / (1- colMeans(y)))
-  # Do CD for n.iter
+# Standalone function to create a deep belief network
+DBN <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1) {
+  # Initialize list for the model
+  weights <- vector("list", length(layers))
+  
+  # Binarize y if provided
+  if (!missing(y)){
+    y <- LabelBinarizer(y)
+  }
+  # Initialize the weight matrices for each layer
+  for (i in 1:(length(layers))) {
+    if (i == 1) { 
+      weights[[i]]$weights <- matrix(rnorm(nrow(train)* layers[i], 0, .01),
+                             nrow = nrow(train), ncol = layers[i])
+      # Add terms for bias 
+      weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
+      weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
+      # Add label weights if y is provided
+      } else if (i < length(layers)) {
+        # Initialize weights
+        weights[[i]]$weights <- matrix(rnorm(layers[i-1] * layers[i], 0, .01),
+                                       nrow = layers[i-1], ncol = layers[i])
+        # Add terms for bias 
+        weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
+        weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
+    } else if (!missing(y)) {
+      # Initialize weights
+      weights[[i]]$weights <- matrix(rnorm(layers[i-1] * layers[i], 0, .01),
+                                     nrow = layers[i-1], ncol = layers[i])
+      # Add terms for bias 
+      weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
+      weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
+      
+      # Initialize y weights
+      weights[[i]]$y.weights <- matrix(rnorm(ncol(y)* layers[i], 0, .01),
+                                       nrow = ncol(y), ncol = layers[i])
+      # Add terms bias for y
+      weights[[i]]$y.weights <- cbind(0, weights[[i]]$y.weights)
+      weights[[i]]$y.weights <- rbind(0, weights[[i]]$y.weights)
+      
+    } else {
+      # Initialize weights
+      weights[[i]]$weights <- matrix(rnorm(layers[i-1] * layers[i], 0, .01),
+                                     nrow = layers[i-1], ncol = layers[i])
+      # Add terms for bias 
+      weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
+      weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
+    }
+  } 
+  # Add bias to x and y if provided
+  x <- rbind(1, x)
+  if (!missing(y)) {
+    y <- cbind(1, y)
+  }
   for (i in 1:n.iter) {
-    # Loop over all the layers
-    # Set visible layer to first training example
-    V0 <- matrix(train[, i], nrow = nrow(train), ncol = 1 )
-    for (j in 1:layers) {
-      # Lower layers CD unsupervised
-      if (j < layers) {
-        grads <- CD(V0, weights[[j]], vis.bias[[j]], inv.bias[[j]])
-        # Update bias and weights for layer j:
-        weights[[j]] <- weights[[j]] + (learning.rate * grads$grad.weights) 
-        vis.bias[[j]] <- vis.bias[[j]] + (learning.rate * grads$grad.vis.bias) 
-        inv.bias[[j]] <- inv.bias[[j]] + (learning.rate * grads$grad.inv.bias) 
+    # Set visible layer to training example
+    samp <- sample(1:ncol(x), 1, replace = TRUE)
+    V0 <- x[, samp, drop = FALSE]
+    for (j in 1:length(layers)) {
+      if (j < length(layers)) {
+        # Run CD
+        grads <- CD(V0, weights[[j]]$weights)
+        weights[[j]]$weights <- weights[[j]]$weights + (learning.rate * grads$grad.weights) 
         # Set new visible layer to hidden layer
-        V0 <- VisToHid(V0, inv.bias[[j]], weights[[j]])
-        
-      } else { # If last layer create supervised RBM
-        grads <- CD(V0, weights[[j]], vis.bias[[j]], inv.bias[[j]], y[i,], y.weights, y.bias)
-        # Update bias and weights for layer j:
-        weights[[j]] <- weights[[j]] + (learning.rate * grads$grad.weights) 
-        vis.bias[[j]] <- vis.bias[[j]] + (learning.rate * grads$grad.vis.bias) 
-        inv.bias[[j]] <- inv.bias[[j]] + (learning.rate * grads$grad.inv.bias) 
-        y.bias <- y.bias + (learning.rate * grads$grad.y.bias)
-        y.weights <- y.weights + (learning.rate * grads$grad.y.weights)
-        
+        V0 <- VisToHid(V0, weights[[j]]$weights)
+        # Fix the bias term again
+        V0[1, ] <- 1
+      } else if (j == length(layers) & !missing(y)) {
+        grads <- CD(V0, weights[[j]]$weights, y[samp,, drop = FALSE], weights[[j]]$y.weights )
+        weights[[j]]$weights <- weights[[j]]$weights + (learning.rate * grads$grad.weights) 
+        weights[[j]]$y.weights <- weights[[j]]$y.weights + (learning.rate * grads$grad.y.weights) 
+      } else {
+        grads <- CD(V0, weights[[j]]$weights)
+        weights[[j]]$weights <- weights[[j]]$weights + (learning.rate * grads$grad.weights) 
       }
     }
   }
   # Return the learned model
-  RBM1 <- list('trained.weights' = weights[[1]], 'trained.vis.bias' = vis.bias[[1]],
-               'trained.inv.bias' = inv.bias[[1]])
-  RBM2 <- list('trained.weights' = weights[[2]], 'trained.vis.bias' = vis.bias[[2]], 
-               'trained.inv.bias' = inv.bias[[2]])
-  RBM3 <- list('trained.weights' = weights[[3]], 'trained.vis.bias' = vis.bias[[3]], 
-               'trained.inv.bias' = inv.bias[[3]], 'trained.y.bias' = y.bias, 'trained.y.weights' = y.weights)
-  return(list('RBM1'=RBM1, 'RBM2' = RBM2, 'RBM3' = RBM3))
-  
+  return(weights)
 }
 
-# Test the function:
-par <- RBM(train = train, y = labels, n.hidden = 100, n.iter = 10000, learning.rate = .1, plot = TRUE,
-           supervised = TRUE)
-
-DBN <- DeepRBN(train = train, y = labels, n.hidden = 100, n.iter = 1000, n.layers = 3, learning.rate = .1)
 
 # Create the predict function:
-PredictRBM <- function(test, labels, model, deep = FALSE) {
+PredictRBM <- function(test, labels, model, layers) {
   # Function to predict on test-data given trained RBM weights and bias terms for the hidden and visible layer
   # 
   # Args:
@@ -431,19 +436,22 @@ PredictRBM <- function(test, labels, model, deep = FALSE) {
   #
   # Create dataframe to save predictions and actual labels
   result.dat <- data.frame('y' = labels, 'y.pred'= rep(0,length(labels)))
-  # Creating binarized matrix of all the possible labels:
+  
+  # Creating binarized matrix of all the possible labels and bind to bias term
   y <- cbind(1, LabelBinarizer(unique(labels)))
+  
   # Name the rows after the possible labels:
   rownames(y) <- unique(labels)
+  
   # Add a column to save the energies:
   y <- cbind(y,rep(0,nrow(y)))
   # Loop over all the test data and calculate model predictions
   for (i in 1:ncol(test)) {
     # Initialize visible unit:
-    V <- matrix(test[, i], ncol = 1)
+    V <- test[, i, drop = FALSE]
     # Add a 1 for the bias
     V <- rbind(1, V)
-    if (deep == FALSE) {
+    if (missing(layers)) {
       for (j in 1:nrow(y)) {
         # Calculate the hidden units for each class:
         H <- VisToHid(V, model$trained.weights, y[j, 1:11, drop = FALSE], model$trained.y.weights)
@@ -451,17 +459,21 @@ PredictRBM <- function(test, labels, model, deep = FALSE) {
         y[j, 12] <- Energy(V, H, model$trained.weights, y[j, 1:11, drop = FALSE], model$trained.y.weights)
       }
     } else {
-      # Calculate first hidden:
-      H1 <- VisToHid(V, model$RBM1$trained.inv.bias, model$RBM1$trained.weights)
-      # Calculate second hidden:
-      H2 <- VisToHid(H1, model$RBM2$trained.inv.bias, model$RBM2$trained.weights )
       for (j in 1:nrow(y)) {
-        # Calculate third hidden layer for each class:
-        H3 <- VisToHid(H2, model$RBM3$trained.inv.bias, model$RBM3$trained.weights, 
-                       y[j, 1:10], model$RBM3$trained.y.weights)
-        # Calculate the energy for each class:
-        y[j, 11] <- Energy(H2, model$RBM3$trained.vis.bias, H3, model$RBM3$trained.inv.bias, model$RBM3$trained.weights,
-                           y[j, 1:10], model$RBM3$trained.y.weights, model$RBM3$trained.y.bias)
+        # Initialize visible unit:
+        V <- test[, i, drop = FALSE]
+        # Add a 1 for the bias
+        V <- rbind(1, V)
+        for (l in 1:layers){
+          if (l < layers) {
+            V <- VisToHid(V, model[[l]]$weights)
+            # Fix the bias term
+            #V[1,] <- 1
+          } else {
+            H <- VisToHid(V, model[[l]]$weights, y[j, 1:11, drop = FALSE], model[[l]]$y.weights)
+            y[j, 12] <- Energy(V, H, model[[l]]$weights, y[j, 1:11, drop = FALSE], model[[l]]$y.weights)
+          }
+        }
       }
     }
     # Predict the label with the highest energy
