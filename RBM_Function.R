@@ -200,7 +200,7 @@ CD <- function(vis, weights, y, y.weights) {
 
 d## Initialize RBM function
 RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1, 
-          plot = FALSE, size.minibatch = 10, momentum = 0.5) {
+          plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001) {
   # Trains a Restricted Boltzmann Machine.
   #
   # Args:
@@ -366,16 +366,18 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
       grads <- CD(V0, weights, y[samp,,drop = FALSE], y.weights)
     }
     # Update the momentum speed
-    momentum_speed_x <- momentum * momentum_speed_x + (grads$grad.weights/ size.minibatch)
-    
+    momentum_speed_x <- momentum * momentum_speed_x + ((grads$grad.weights - (lambda * weights))/ size.minibatch)
+   
     # Update weights and bias
     weights <- weights + (learning.rate * momentum_speed_x) 
+    
     if (!missing(y)) {
       # Update momentum speed
-      momentum_speed_y <- momentum * momentum_speed_y + (grads$grad.y.weights/ size.minibatch)
+      momentum_speed_y <- momentum * momentum_speed_y + ((grads$grad.y.weights - (lambda * y.weights))/ size.minibatch)
+     
       
       # Update weights and bias
-      y.weights <- y.weights + (learning.rate * momentum_speed_y)
+      y.weights <- y.weights + (learning.rate * momentum_speed_y) 
     }
     # Plot learning of hidden nodes at every plot.epoch:
     if(plot.counter == plot.epoch & plot == TRUE) {
