@@ -18,12 +18,14 @@ for(i in 1:length(labels)){
 }
 
 # Put the data in a matrix of shape features * samples:
-train <- matrix(unlist(train1[1:20000,-1]), nrow =784,ncol = 20000, byrow = T)/255
-
+train <- matrix(unlist(train1[1:40000,-1]), nrow =784, ncol = 40000, byrow = T)/255
+train <- t(train)
+labels_train <- labels[1:40000]
 
 ## Initialize test_data MNIST
-test <- matrix(unlist(train1[20001:21000,-1]), nrow =784, ncol = 1000, byrow = T)/255
-test_y <- labels[20001:21000]
+test <- matrix(unlist(train1[40001:41000,-1]), nrow =784, ncol = 1000, byrow = T)/255
+test <- t(test)
+test_y <- labels[40001:41000]
 
 # Function for binarizing labels:
 LabelBinarizer <- function(labels) {
@@ -64,10 +66,10 @@ VisToHid <- function(vis, weights, y, y.weights) {
   }
   if(missing(y) & missing(y.weights)) {
     # Calculate the hidden layer with the trained weights and bias
-    H <- 1/(1 + exp(-( t(weights) %*% V0))) 
+    H <- 1/(1 + exp(-( V0 %*% weights))) 
   } else {
     Y0 <- y
-    H <- 1/(1 + exp(- (t(weights) %*% V0 + t(y.weights) %*% t(Y0)))) 
+    H <- 1/(1 + exp(- ( V0 %*% weights + Y0 %*% y.weights))) 
   }
   return(H)
 }
@@ -87,11 +89,11 @@ HidToVis <- function(inv, weights, y.weights) {
   #
   if(missing(y.weights)) {
     # Reconstruct only the visible layer when y.weights is missing
-    V <- 1/(1 + exp(-(  weights %*% inv)) )
+    V <- 1/(1 + exp(-(   inv %*% t(weights)) ))
     return(V)
   } else {
     # Reconstruct visible and labels if y.weights
-    Y <- 1/(1 + exp(-(y.weights %*% inv))) 
+    Y <- 1/(1 + exp(-( inv %*% t(y.weights)))) 
     return(Y)
   }
 }
@@ -112,10 +114,10 @@ Energy <- Energy <- function(vis, inv, weights, y, y.weights) {
   #
   # Calculate the energy if supervised
   if(!missing(y) & !missing(y.weights)){
-    E <- -(t(vis)%*% weights %*% inv) - (y %*% y.weights %*% inv)
+    E <- -(vis %*% weights %*% t(inv)) - (y %*% y.weights %*% t(inv))
   } else {
     # Calculate the energy if unsupervised
-    E <- -(t(vis)%*% weights %*% inv)
+    E <- -(vis %*% weights %*% t(inv))
   }
   # Return the energy:
   return(E)
@@ -142,40 +144,43 @@ CD <- function(vis, weights, y, y.weights) {
   if (missing(y) & missing(y.weights)) {
     # Calculate hidden layer
     H0 <- VisToHid(vis, weights)
+    H0[,1] <- 1
   } else {
     # Add a layer with labels if y is provided
     H0 <- VisToHid(vis, weights, y, y.weights)
+    H0[,1] <- 1
   }
   # Binarize the hidden layer:
   unif  <- runif(nrow(H0) * (ncol(H0)))
-  H0 <- H0 > matrix(unif, nrow=nrow(H0), ncol= ncol(H0))
-  # Calculate positive phase
-  pos.phase <- vis %*% t(H0)
+  H0.states <- H0 > matrix(unif, nrow=nrow(H0), ncol= ncol(H0))
+  
+  # Calculate positive phase, we always use the probabilities for this
+  pos.phase <- t(vis) %*% H0
   if (!missing(y)) {
-    pos.phase.y <- H0 %*% y
+    pos.phase.y <- t(y) %*% H0
   }
   # Start negative  phase
   # Reconstruct visible layer
-  V1 <- HidToVis(H0, weights)
+  V1 <- HidToVis(H0.states, weights)
   # Set the bias unit to 1
-  V1[1,] <- 1
+  V1[,1] <- 1
   
   if (missing(y) & missing(y.weights) ) {
-    # Reconstruct hidden layer unsupervised
+    # Reconstruct hidden layer unsupervised, no need to fix the bias anymore
     H1 <- VisToHid(V1, weights)
   } else {
     # Reconstruct labels if y is provided
     Y1 <- HidToVis(H0, weights,  y.weights )
     # Set the bias unit to 1
-    Y1[1,] <- 1
-    # Reconstruct hidden layer supervised
-    H1 <- VisToHid(V1, weights, t(Y1), y.weights)
+    Y1[,1] <- 1
+    # Reconstruct hidden layer supervised, no need to fix the bias anymore
+    H1 <- VisToHid(V1, weights, Y1, y.weights)
   }
-  # Calculate negative phase:
-  neg.phase <- V1 %*% t(H1)
+  # Calculate negative associations, we alway use the probabilities for this:
+  neg.phase <- t(V1) %*% H1
   if (!missing(y) & !missing(y.weights)) {
     # Calculate negative phase y
-    neg.phase.y <- H1 %*% t(Y1)
+    neg.phase.y <- t(Y1) %*% H1
   }
   ## Calculate the gradients
   # Calculate gradients for the weights:
@@ -186,16 +191,16 @@ CD <- function(vis, weights, y, y.weights) {
     grad.y.weights <- pos.phase.y - neg.phase.y
     
     # Return list with  gradients supervised
-    return(list('grad.weights' = grad.weights,'grad.y.weights' = t(grad.y.weights)))
+    return(list('grad.weights' = grad.weights,'grad.y.weights' = grad.y.weights))
   } else {
     # Return list with gradients unsupervised
     return(list('grad.weights' = grad.weights  ))
   }
 }
 
-## Initialize RBM function
+d## Initialize RBM function
 RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1, 
-          plot = FALSE, size.minibatch = 10 ) {
+          plot = FALSE, size.minibatch = 10, momentum = 0.5) {
   # Trains a Restricted Boltzmann Machine.
   #
   # Args:
@@ -265,31 +270,43 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
   if(nrow(x) > ncol(x)) {
     warning('Less data than features, this will probably result in a bad model fit')
   }
+  
   # Initialize the weights, n.features * n.hidden with values from gaussian distribution
-  weights <- matrix(rnorm(nrow(x)*n.hidden, 0, .01), nrow = nrow(x), ncol = n.hidden)
+  weights <- matrix(rnorm(ncol(x) * n.hidden, 0, .01), nrow = ncol(x), ncol = n.hidden)
+  # Initialize the momentum_speed matrix
+  momentum_speed_x <- matrix(0, nrow = ncol(x) + 1, ncol = n.hidden + 1)
   
   # Add bias to weights
   weights <- cbind(0, weights)
   weights <- rbind(0, weights)
 
   # Add 1 for the bias to x
-  x <- rbind(1, x)
+  x <- cbind(1, x)
 
   # Initialize the labels, weights and bias for the labels if supervised = TRUE
   if (!missing(y)) {
+    # Get all the unique labels in y
+    labels <- unique(y)
+    # Get the indexes of each unique label in y
+    idx <- vector('list', length = length(labels))
+    # Save indexes
+    for (i in 1:length(labels)) {
+      idx[[i]]<- which(y == labels[i])
+    }
     # Make binarized vectors of the labels
     y <- LabelBinarizer(y)
-    # Initialize number of labels:
-    n.labels <- ncol(y)
     # Add one term for the bias
     y <- cbind(1, y)
-    # Make y sparse
-    #y <- sparseMatrix(y, sparse = TRUE)
+   
     # Create the y weights matrix
-    y.weights <- matrix(rnorm(n.labels * n.hidden, 0, 01), nrow = n.labels, ncol = n.hidden)
+    y.weights <- matrix(rnorm(length(labels) * n.hidden, 0, 01), nrow = length(labels), ncol = n.hidden)
+    # Add momentum speed matrix
+    momentum_speed_y <- matrix(0, nrow = length(labels) + 1, ncol = n.hidden + 1)
+    
     # add bias to weights
     y.weights <- cbind(0, y.weights)
     y.weights <- rbind(0, y.weights)
+    
   }
   # PLot the untrained weights
   if(plot == TRUE){
@@ -304,7 +321,7 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
       # Remove weights for plotting
       for(i in samp.plot) {
         # Plot weights
-        image(matrix(plot.weights[, i], nrow = sqrt(nrow(x)-1)), col=grey.colors(255))
+        image(matrix(plot.weights[, i], nrow = sqrt(ncol(x)-1)), col=grey.colors(255))
         title(main = paste0('Hidden node ', i), font.main = 4)
         # Initialize counter for the plotting:
         plot.counter <- 0
@@ -312,24 +329,35 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
     } else {
         for(i in 1:n.hidden) {
           # Plot weights
-          image(matrix(plot.weights[, i], nrow = sqrt(nrow(x)-1)), col=grey.colors(255))
+          image(matrix(plot.weights[, i], nrow = sqrt(ncol(x)-1)), col=grey.colors(255))
           title(main = paste0('Hidden node ', i), font.main = 4)
           # Initialize counter for the plotting:
           plot.counter <- 0
         }
     }
   }
-  
+  plot.counter <- 0
   # Start contrastive divergence, k = 1
   for (i in 1:n.iter){
-    # Sample minibatch from x
-    samp <- sample(1:ncol(x), size.minibatch, replace = TRUE)
-    if (plot == TRUE) {
-      # Update plot counter
-      plot.counter <- plot.counter + 1
-    }
+    if (missing(y)) {
+      # Sample minibatch from x, unsupervised
+      samp <- sample(1:nrow(x), size.minibatch, replace = TRUE)
+     } else {
+      # Pick balanced labels
+      samp <- rep(0,size.minibatch)
+      p <- 1
+      for (i in 1 : size.minibatch){
+        samp[p]<- sample(idx[[p]], 1)
+        p <- p + 1
+        if (p == length(labels) +1) {
+          # Reset counter
+          p <- 1
+        }
+      }
+     }
+    plot.counter <- plot.counter + 1
     # At iteration set visible layer to random sample of train:
-    V0 <- x[, samp, drop = FALSE]
+    V0 <- x[samp, ,drop = FALSE]
     if (missing(y)) {
       # Calculate gradients
       grads <- CD(V0, weights)
@@ -337,11 +365,17 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
       # Calculate gradients
       grads <- CD(V0, weights, y[samp,,drop = FALSE], y.weights)
     }
+    # Update the momentum speed
+    momentum_speed_x <- momentum * momentum_speed_x + (grads$grad.weights/ size.minibatch)
+    
     # Update weights and bias
-    weights <- weights + (learning.rate * (grads$grad.weights/ size.minibatch)) 
+    weights <- weights + (learning.rate * momentum_speed_x) 
     if (!missing(y)) {
+      # Update momentum speed
+      momentum_speed_y <- momentum * momentum_speed_y + (grads$grad.y.weights/ size.minibatch)
+      
       # Update weights and bias
-      y.weights <- y.weights + (learning.rate * (grads$grad.y.weights/ size.minibatch))
+      y.weights <- y.weights + (learning.rate * momentum_speed_y)
     }
     # Plot learning of hidden nodes at every plot.epoch:
     if(plot.counter == plot.epoch & plot == TRUE) {
@@ -351,12 +385,12 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
       plot.weights <- weights[-1, -1]
       if (n.hidden > 30) {
         for(i in samp.plot) {
-          image(matrix(plot.weights[, i], nrow = sqrt(nrow(x)-1)), col=grey.colors(255))
+          image(matrix(plot.weights[, i], nrow = sqrt(ncol(x)-1)), col=grey.colors(255))
           title(main = paste0('Hidden node ', i), font.main = 4)
         }
       } else {
           for(i in 1:n.hidden) {
-            image(matrix(plot.weights[, i], nrow = sqrt(nrow(x)-1)), col=grey.colors(255))
+            image(matrix(plot.weights[, i], nrow = sqrt(ncol(x)-1)), col=grey.colors(255))
             title(main = paste0('Hidden node ', i), font.main = 4)
           }
       }
@@ -372,104 +406,8 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
   }
 }
 
-# Standalone function to create a deep belief network
-DBN <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1, size.minibatch = 10) {
-  # Initialize list for the model
-  weights <- vector("list", length(layers))
-  
-  # Binarize y if provided
-  if (!missing(y)){
-    y <- LabelBinarizer(y)
-  }
-  # Initialize the weight matrices for each layer
-  for (i in 1:(length(layers))) {
-    if (i == 1) { 
-      weights[[i]]$weights <- matrix(rnorm(nrow(train)* layers[i], 0, .01),
-                             nrow = nrow(train), ncol = layers[i])
-      # Add terms for bias 
-      weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
-      weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
-      # Add label weights if y is provided
-      } else if (i < length(layers)) {
-        # Initialize weights
-        weights[[i]]$weights <- matrix(rnorm(layers[i-1] * layers[i], 0, .01),
-                                       nrow = layers[i-1], ncol = layers[i])
-        # Add terms for bias 
-        weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
-        weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
-    } else if (!missing(y)) {
-      # Initialize weights
-      weights[[i]]$weights <- matrix(rnorm(layers[i-1] * layers[i], 0, .01),
-                                     nrow = layers[i-1], ncol = layers[i])
-      # Add terms for bias 
-      weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
-      weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
-      
-      # Initialize y weights
-      weights[[i]]$y.weights <- matrix(rnorm(ncol(y)* layers[i], 0, .01),
-                                       nrow = ncol(y), ncol = layers[i])
-      # Add terms bias for y
-      weights[[i]]$y.weights <- cbind(0, weights[[i]]$y.weights)
-      weights[[i]]$y.weights <- rbind(0, weights[[i]]$y.weights)
-      
-    } else {
-      # Initialize weights
-      weights[[i]]$weights <- matrix(rnorm(layers[i-1] * layers[i], 0, .01),
-                                     nrow = layers[i-1], ncol = layers[i])
-      # Add terms for bias 
-      weights[[i]]$weights <- cbind(0, weights[[i]]$weights)
-      weights[[i]]$weights <- rbind(0, weights[[i]]$weights)
-    }
-  } 
-  # Add bias to x and y if provided
-  x <- rbind(1, x)
-  if (!missing(y)) {
-    y <- cbind(1, y)
-  }
-  for (i in 1:n.iter) {
-    # Set visible layer to training example
-    samp <- sample(1:ncol(x), size.minibatch, replace = TRUE)
-    V0 <- x[, samp, drop = FALSE]
-    # Train all layers except last layer
-    for (j in 1:(length(layers)-1)) {
-        # Run CD
-        grads <- CD(V0, weights[[j]]$weights)
-        # Adjust weights
-        weights[[j]]$weights <- weights[[j]]$weights + (learning.rate * (grads$grad.weights/size.minibatch)) 
-        # Set new visible layer to hidden layer
-        V0 <- VisToHid(V0, weights[[j]]$weights)
-        # Fix the bias term again
-        V0[1, ] <- 1
-    }
-  }
-  for (i in 1:n.iter) {
-    # Set visible layer to training example
-    samp <- sample(1:ncol(x), size.minibatch, replace = TRUE)
-    V0 <- x[, samp, drop = FALSE]
-    for (l in 1:(length(layers)-1)){
-      # Sample states
-      V0 <- VisToHid(V0, weights[[l]]$weights)
-      # Fix bias
-      V0[1, ] <- 1
-    } 
-    for (i in 1:n.iter.CD) {
-      # Train final prediction layer n.iter.CD
-      # Used sample for CD on final layer
-      grads <- CD(V0, weights[[length(layers)]]$weights, y[samp,, drop = FALSE], weights[[length(layers)]]$y.weights )
-      # Update the weights
-      weights[[length(layers)]]$weights <- weights[[length(layers)]]$weights + 
-        (learning.rate * (grads$grad.weights/size.minibatch)) 
-      weights[[length(layers)]]$y.weights <- weights[[length(layers)]]$y.weights + 
-        (learning.rate * (grads$grad.y.weights/size.minibatch)) 
-    }
-  }
-  
-  # Return the learned model
-  return(weights)
-}
-
 # DBN function based around the RBM function
-DBN <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1, size.minibatch = 10) {
+PretrainGreedy <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1, size.minibatch = 10) {
   # Function to train a deep belief network by using stacked RBM's
   # 
   # Args:
@@ -497,20 +435,33 @@ DBN <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1,
     if (j == 1){
       # Save trained weights
       weights[[j]] <- RBM(x, n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch)
-      # create hidden layer
-      H.probs <- matrix(apply(rbind(1, x), 2, VisToHid, weights = weights[[j]]$trained.weights ), ncol = ncol(x))
+      # create hidden layer in one go with matrix algebra (improved running time)
+     
+      H.probs <- 1/(1 + exp(-( cbind(1, x) %*% weights[[j]]$trained.weights   ))) 
+      #H.probs <- matrix(apply(rbind(1, x), 2, VisToHid, weights = weights[[j]]$trained.weights ), ncol = ncol(x))
       # Sample states
       H.states <- H.probs > matrix(runif(dim(H.probs)[1] * dim(H.probs)[2]), ncol = dim(H.probs)[2] )
+      # Fix the bias 
+      H.states[,1] <- 1
     } else { # train in between layers with las hidden layer states
-      weights[[j]] <- RBM(H.states[-1,], n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch) #Delete bias term from states
+      weights[[j]] <- RBM(H.states[, -1 ], n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch) #Delete bias term from states
+      # Use matrix algebra to calcalate next layer
+      H.probs <- 1/(1 + exp(-( H.states %*% weights[[j]]$trained.weights  ))) 
       # Create new hidden layers with states of last iteration
-      H.probs <- matrix(apply(H.states, 2, VisToHid, weights = weights[[j]]$trained.weights ), ncol = ncol(x))
+      #H.probs <- matrix(apply(H.states, 2, VisToHid, weights = weights[[j]]$trained.weights ), ncol = ncol(x))
       # Sample all the node states
       H.states <- H.probs > matrix(runif(dim(H.probs)[1] * dim(H.probs)[2]), ncol = dim(H.probs)[2])
-    }
+      # Fix the bias 
+      H.states[, 1] <- 1
+    } 
+    if(!missing(y)) {
     # Then train the last classification layer with the hidden states of the last layer
-    weights[[length(layers)]] <- RBM(H.states[-1,], y, n.iter, 
+    weights[[length(layers)]] <- RBM(H.states[, -1], y, n.iter, 
                                      n.hidden = layers[[length(layers)]], size.minibatch = size.minibatch)# Delete bias terms
+    } else {
+      weights[[length(layers)]] <- RBM(H.states[, -1], n.iter= n.iter, 
+                                       n.hidden = layers[[length(layers)]], size.minibatch = size.minibatch)
+    }
   }
   # Return the learned model
   return(weights)
@@ -541,13 +492,14 @@ PredictRBM <- function(test, labels, model, layers) {
   
   # Add a column to save the energies:
   y <- cbind(y,rep(0,nrow(y)))
+  # Add one for bias to data
+  test <- cbind(1, test)
   # Loop over all the test data and calculate model predictions
-  for (i in 1:ncol(test)) {
+  for (i in 1:nrow(test)) {
     y[,12] <- 0
     # Initialize visible unit:
-    V <- test[, i, drop = FALSE]
-    # Add a 1 for the bias
-    V <- rbind(1, V)
+    V <- test[i , , drop = FALSE]
+    # Make the predictions 
     if (missing(layers)) {
       for (j in 1:nrow(y)) {
         # Calculate the hidden units for each class:
@@ -561,19 +513,16 @@ PredictRBM <- function(test, labels, model, layers) {
       }
       for (j in 1:nrow(y)) {
         # Initialize visible unit:
-        V <- test[, i, drop = FALSE]
-        # Add a 1 for the bias
-        V <- rbind(1, V)
+        V <- test[i,, drop = FALSE]
         for (l in 1:layers){
           if (l < layers) {
             V <- VisToHid(V, model[[l]]$trained.weights)
             # Fix the bias term
-            V[1,] <- 1
-            # Save probs
-            V.prob <- V
+            V[, 1] <- 1
+         
           } else {
-            H <- VisToHid(V.prob, model[[l]]$trained.weights, y[j, 1:11, drop = FALSE], model[[l]]$trained.y.weights)
-            y[j, 12] <- Energy(V.prob, H, model[[l]]$trained.weights, y[j, 1:11, drop = FALSE], model[[l]]$trained.y.weights)
+            H <- VisToHid(V, model[[l]]$trained.weights, y[j, 1:11, drop = FALSE], model[[l]]$trained.y.weights)
+            y[j, 12] <- Energy(V, H, model[[l]]$trained.weights, y[j, 1:11, drop = FALSE], model[[l]]$trained.y.weights)
           }
         }
       }
@@ -589,4 +538,12 @@ PredictRBM <- function(test, labels, model, layers) {
 
 
 
-PredictRBM(test[,1:10],  test_y[1:10], model = model, layers = 3)
+
+PredictRBM(test,  test_y, model = mod, layers = 3)
+
+vis <- matrix(c(1,3,2), nrow = 1, ncol = 3)
+weight <- matrix(c(.1,.1,.1,.1,.3,.2,.1,.3,.3,.1,.3,.3,.1,.3,.3), nrow = 3, byrow = F)
+
+logistic <- function(x) {
+  1/(1+exp(-x))
+}
