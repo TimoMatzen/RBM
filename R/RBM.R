@@ -21,24 +21,6 @@
 ## Initialize RBM function
 RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1, 
                  plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001) {
-  # Trains a Restricted Boltzmann Machine.
-  #
-  # Args:
-  #   x: Training dataset of shape features * samples.
-  #   y: Labels of the data (vector)
-  #   n.hidden: Desired size of the hidden layer, default is 30
-  #   learning.rate: Desired learning rate, default is 0.1.
-  #   n.iter: Number of iterations for training the system. More iterations 
-  #   generally results in a better model but could take very long depending on the size of 
-  #   the data. Default = 100.
-  #   plot: Plot of the progress of learning of the hidden layers during learning. 
-  #   mom: Is the momentum or velocity for training the system. See 
-  #   "A Practical Guide to Training Restricted Boltzmann Machines (Hinton, 2010)"
-  # 
-  # Returns:
-  #   A list with: A weights matrix of the learned system; the weights for the labels and label bias;
-  #   the bias of the invisible and visible layers.
-  # 
   # Check whether n.iter is devicable by ten and if so initialize plot.epoch:
   if (plot == TRUE) {
     if ((n.iter %% 10) == 0) {
@@ -65,12 +47,12 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
   }
   if (!missing(y)) {
     if (any(!is.numeric(y))) {
-      stop('Sorry the albels have non-numeric values, the function is executed')
+      stop('Sorry the labels have non-numeric values, the function is executed')
     }
     if (any(!is.finite(y))) {
       stop('Sorry this function cannot handle NAs or non-finite label values')
     }
-    if (length(y) != ncol(train)) {
+    if (length(y) != nrow(train)) {
       stop('Labels and data should be equal for supervised RBM: try training an unsupervised RBM')
     }
   }
@@ -87,7 +69,7 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
   if( length(dim(x)) < 2 ) {
     stop("Dimensions of the data were not right, should be of shape n.features * n.samples")
   }
-  if(nrow(x) > ncol(x)) {
+  if(ncol(x) > nrow(x)) {
     warning('Less data than features, this will probably result in a bad model fit')
   }
   

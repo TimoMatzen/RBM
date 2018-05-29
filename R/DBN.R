@@ -20,7 +20,7 @@
 #'
 #'@return Returns the finetuned DBN model that can be used in the PredictDBN function.
 #'
-#'
+#'@export
 # Initialize the DBN function
 DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
                       learning.rate = 0.5, size.minibatch = 10, n.iter.pre = 30, learning.rate.pre = .1) {

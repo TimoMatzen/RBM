@@ -20,22 +20,6 @@
 #' 
 StackRBM <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1, 
                      size.minibatch = 10, lambda = 0.1, momentum = 0.5) {
-  # Function to train a deep belief network by using stacked RBM's
-  # 
-  # Args:
-  #   x: Is the train data set of shape n.features * n.samples
-  #   y: Is a vector of labels for the data-set
-  #   n.iter: The number of maximum iterations for training each RBM layer
-  #   layers: Vector of the hidden nodes in each layer
-  #   learning.rate Learning rate for the stochastic gradient descent
-  #   size.minibatch: the size of the minibatches to used for learning the system
-  #   momentum: Speeds up the gradient descent learning.
-  #   lambda: The sparsity penalty lambda to prevent the system from overfitting.
-  #
-  # Returns:
-  #   List containing the learned weight and biases for each layer
-  #
-  #
   # Initialize list for the model
   weights <- vector("list", length(layers))
   # Some checks

@@ -8,22 +8,13 @@
 #'@param model Is the trained RBM or StackRBM model.
 #'@param layers Only needed with StackRBM to define the number of layers.
 #'
-#'@return A list with the actual labels and predictions side by side and the accuracy score on the test-data.
+#'@return A list with a confusion matrix and the accuracy of the predictions.
 #'
 #'@export
 #'
-# Create the predict function:
+# 
 PredictRBM <- function(test, labels, model, layers) {
-  # Function to predict on test-data given trained RBM weights and bias terms for the hidden and visible layer
-  # 
-  # Args:
-  #   test: Is the test-data on which predictions are to be made of shape n_features * samples
-  #   labels: Is a vector of possible labels for the data-set
-  #   model: Is the trained RBM or StackRBM model.
-  #   layers: Only needed with StackRBM to define the number of layers.
-  # Returns:
-  #   List: containing a dataframe of the predicted labels and the actual labels & accuracy
-  #
+
   # Create dataframe to save predictions and actual labels
   result.dat <- data.frame('y' = labels, 'y.pred'= rep(0,length(labels)))
   
@@ -32,7 +23,6 @@ PredictRBM <- function(test, labels, model, layers) {
   
   # Name the rows after the possible labels:
   rownames(y) <- unique(labels)
-  
   # Add a column to save the energies:
   y <- cbind(y,rep(0,nrow(y)))
   # Add one for bias to data
@@ -73,8 +63,13 @@ PredictRBM <- function(test, labels, model, layers) {
     # Predict the label with the highest energy
     result.dat[i,2] <- as.numeric(rownames(y)[y[, 12] == min(y[, 12])])
   }
+  
   # Calculate the accuracy of the classifier
   acc <- mean(result.dat[, 1] == result.dat[, 2])
+  # make the confusion matrix of the classifier
+  conf <- table('pred' = result.dat[, 2], 'truth' = result.dat[, 1])
+  # Make an output list
+  output <- list('ConfusionMatrix' = conf, 'Accuracy' = acc)
   # Return list with predictions and accuracy
-  return(list('Preds' = result.dat, 'Acc' = acc))
+  return(output)
 }

@@ -1,11 +1,14 @@
 Package: RBM
-Title: What the Package Does (one line, title case)
+Title: Package for fitting RBM and DBN models in R.
 Version: 0.0.0.9000
-Author: Timo Matzen <timomatzen87@gmail.com>
+Author: Timo Matzen 
 Maintainer: Timo Matzen <timomatzen87@gmail.com>
-Description: What the package does (one paragraph).
+Description: This is a package for training Restricted Boltzman machines, stacked Reststricted Boltzmann Machines and 
+  Deep Belief Networks on binary data. All models can be trained in a supervised manner and the package includes predict functions
+  to get model predictions on an unseen test-set. The package also includes the ReconstructRBM function that can be used to 
+  reconstruct images with either a RBM model or a stacked RBM model (unsupervised).
 Depends: R (>= 3.4.3)
-License: What license is it under?
+License: MIT
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.0.1

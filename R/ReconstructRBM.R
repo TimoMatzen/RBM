@@ -53,6 +53,5 @@ ReconstructRBM <- function(test, model, layers) {
   # Plot reconstruction model
   image(matrix(V.rec[, -1], nrow = sqrt(ncol(test))))
   title(main = 'Reconstruction Model', font.main = 4)
-  
 }
 
