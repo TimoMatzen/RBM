@@ -1,2 +1,5 @@
-# RBM
-Restricted Boltzmann Machine in R
+---
+title: "RBM package"
+output: html_notebook
+---
+

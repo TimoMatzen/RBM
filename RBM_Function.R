@@ -409,7 +409,8 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
 }
 
 # DBN function based around the RBM function
-PretrainGreedy <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1, size.minibatch = 10) {
+PretrainGreedy <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate = 0.1, 
+                           size.minibatch = 10, lambda = 0.1) {
   # Function to train a deep belief network by using stacked RBM's
   # 
   # Args:
@@ -436,7 +437,7 @@ PretrainGreedy <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.
     # Train first RBM
     if (j == 1){
       # Save trained weights
-      weights[[j]] <- RBM(x, n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch)
+      weights[[j]] <- RBM(x, n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch, lambda = lambda)
       # create hidden layer in one go with matrix algebra (improved running time)
      
       H.probs <- 1/(1 + exp(-( cbind(1, x) %*% weights[[j]]$trained.weights   ))) 
@@ -446,7 +447,7 @@ PretrainGreedy <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.
       # Fix the bias 
       H.states[,1] <- 1
     } else { # train in between layers with las hidden layer states
-      weights[[j]] <- RBM(H.states[, -1 ], n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch) #Delete bias term from states
+      weights[[j]] <- RBM(H.states[, -1 ], n.iter = n.iter, n.hidden = layers[j], size.minibatch = size.minibatch, lambda = lambda) #Delete bias term from states
       # Use matrix algebra to calcalate next layer
       H.probs <- 1/(1 + exp(-( H.states %*% weights[[j]]$trained.weights  ))) 
       # Create new hidden layers with states of last iteration
@@ -459,10 +460,10 @@ PretrainGreedy <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.
     if(!missing(y)) {
     # Then train the last classification layer with the hidden states of the last layer
     weights[[length(layers)]] <- RBM(H.states[, -1], y, n.iter, 
-                                     n.hidden = layers[[length(layers)]], size.minibatch = size.minibatch)# Delete bias terms
+                                     n.hidden = layers[[length(layers)]], size.minibatch = size.minibatch, lambda = lambda)# Delete bias terms
     } else {
       weights[[length(layers)]] <- RBM(H.states[, -1], n.iter= n.iter, 
-                                       n.hidden = layers[[length(layers)]], size.minibatch = size.minibatch)
+                                       n.hidden = layers[[length(layers)]], size.minibatch = size.minibatch, lambda = lambda)
     }
   }
   # Return the learned model
