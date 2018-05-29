@@ -58,7 +58,7 @@ RBM(x = train, plot = TRUE, n.iter = 1000, n.hidden = 30, size.minibatch = 10)
 ```
 I made a gif of the plots so you can see what it should look like:
 
-![](Learning_RBM.gif)
+![](Learning_RBM.gif?raw=true)
 
 
 After training the RBM model you can check how well it reconstructs the data with the 'ReconstructRBM()' function:
