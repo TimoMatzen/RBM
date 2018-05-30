@@ -1,6 +1,6 @@
 # Restricted Boltzmann Machine 
 
-The original purpose of this project was to create a working implementation of the Restricted Boltzmann Machine (RBM). However, after creating a working RBM function my interest moved to the classification RBM. After creating the classification RBM I got interested in stacking RBM's and Deep Belief Networks (DBN). As the project kept expanding I decided to turn my work into a package. This Readme serves as a description of my package and a small introduction to RBM's, classification RBM's, stacked RBM's and DBN's. 
+The original purpose of this project was to create a working implementation of the Restricted Boltzmann Machine (RBM). However, after creating a working RBM function my interest moved to the classification RBM. After creating the classification RBM I got interested in stacking RBMs and Deep Belief Networks (DBN). As the project kept expanding I decided to turn my work into a package. This Readme serves as a description of my package and a small introduction to RBMs, classification RBMs, stacked RBMs and DBNs. 
 
 
 ## Table of contents
@@ -28,10 +28,17 @@ The original purpose of this project was to create a working implementation of t
 ### Install Package
 
 
-Lets start by installing my package from GitHub, this can be done with the following code snippet:
+Lets start by installing my package from GitHub, this can be done with the following code snippet (installing the package can take a couple of minutes):
 
 ```R
+# First install devtools
+install.packages("devtools")
+# Load devtools
+library(devtools)
+# Install RBM
 install_github("TimoMatzen/RBM")
+# load RBM
+library(RBM)
 ```
 
 ### Data
@@ -61,7 +68,21 @@ Oke now we are ready to go on, lets start with the (easiest) model: the Restrict
 ## Restricted Boltzmann Machine
 
 ### Small Intro
-The restricted Boltzmann Machine Iets over CD ook
+Lets start with a small introduction on the Restricted Boltzmann Machine and it's uses. RBMs are undirected graphs ([graphical models](https://en.wikipedia.org/wiki/Graphical_model)) belonging to the family of [Boltzmann machines](https://en.wikipedia.org/wiki/Boltzmann_machine), they are used as *generative* data models (Hinton, 2010). RBMs can be used for data reduction (like PCA) and can also be adjusted for classification purposes (Larochelle et al., 2010). They consist of only two layers of nodes, namely, a *hidden* layer with hidden nodes and a *visible* layer consisting of nodes that represent the data. In most applications the visible layer is represented by binary units, in the examples of this Readme we use the pixel values of the MNIST data which are normalized so they lie between 0 and 1. You can see a graphical representation of the RBM below:
+
+<div style="text-align:center"><img src="RBM.png" alt="drawing" style="width: 300px;"/></div>
+
+Although RBMs belong to the family of Boltzmann Machines; they are not the same as Boltzmann Machines. They are a restricted version of the Boltzmann Machine as the nodes within a layer can only have connections to nodes in a different layer. This seemingly small difference between the Boltzmann Machine and the RBM actually makes for a *huge* difference. Due to the lack of connections between nodes within the hidden and visible layers the RBM is a [complete bipartite graph](https://en.wikipedia.org/wiki/Bipartite_graph). Complete bipartite graphs have a nice property, namely, the nodes within a layer are conditionally independent given the other layer. This makes RBMs a lot easier and efficient to train than the original Boltzmann machine. As the nodes within a layer are conditionally independent of each other given the other layer we can sample all the nodes in the hidden layer given the visible layer at the same time and vice-versa. We can do this by performing Gibbs sampling, we set the visible layer to a random data sample and then sample the hidden layer from the visible layer (*positive phase*) and then reconstruct the visible layer by sampling the visible layer from the hidden layer (*negative phase*). in theory you repeat this process until the samples are coming from the the same distribution as the data (reach equilibrium). However, in the case of RBMs, Hinton (2002) showed that you only need to run Gibbs sampling for a couple of iterations before adjusting the weights and that this also works well and is a lot faster---this method is called *contrastive divergence* (CD). In fact, most RBM learning algorithms get great results by only running one iteration of CD (Hinton, 2010) and that is also what I did in the CD function that I wrote.
+
+The actual function that is being minimized with contrastive divergence is the *energy* of the system. RBMs are energy models and in general a good model has a *low* energy. The energy is a function of the hidden nodes, weights between the hidden and visible layers and the bias terms (similar to the intercept in regression) of the model. Below is the equation for calculating the energy:
+
+$E(x,h)=-h^TWx-b^Tx-c^Th$
+
+In this equation *x* stands for the visible nodes, *h* for the hidden nodes, *W* are the weights (parameters) of the model, *b* is the bias of the visible nodes and *c* is the hidden node bias. Do not worry we will not go into more mathematical detail.
+
+Enough of all this theoretical gibberish, lets train our own RBM model!
+
+
 
 ### Using `RBM()`
 After installing the RBM package from Github you can start using the RBM function. I will provide you with a short example of how to use the RBM function. For information about this function and the arguments that it takes you can also just type `?RBM` in your R console.
@@ -110,10 +131,21 @@ Lets go on and see if we can train a RBM that is not only good at reconstructing
 ## Classification Restricted Boltzmann Machine
 
 ### Small Intro
-Link naar het paper van Larochelle
+In the previous chapter we discussed the RBM as a generative model, which was also one of the original purposes. However, in this section we will also look at the RBM as a discriminative model. Larochelle et al. (2012) wrote a nice paper on this topic and their proposed method is very intuitive---at least I found it to be intuitive. Instead of only having one visible layer, which in the MNIST example consists of pixel values, they added a second visible layer---the (binarized) labels. The hidden layer is then a function of both the pixel values and the (binarized) labels. The following image, also from the Larochelle et al. (2012) paper, illustrates this nicely:
+
+<div style="text-align:center"><img src="ClasRBM.png" alt="drawing" style="width: 300px;"/></div>
+
+So the only change that is made with regards to the original RBM is that the model now also has label weights and biases. After training the system, again with contrastive divergence, each possible label can be tried in combination with the data and the model picks the label that has the lowest energy out of all the labels. The energy function now looks as follows:
+
+$E(\boldsymbol{y},x,h)=-h^TWx-b^Tx-c^Th-\boldsymbol{d^Ty-h^tUy}$
+
+The parts in bold are the parts that are added to the energy function and represent the labels (*y*), label weights (*U*) and label bias (*d*).
+
+I have implemented this method in the `RBM()` function, lets see if it works!
+
 
 ### Using `RBM()` for classification
-In the previous part we looked at the RBM as a generative model, now we are going to try and classify labels of the MNIST data-set by training a classification RBM. We can use the `RBM()` function again, the only difference is that we now also provide the labels as the *y* argument:
+Lets try and classify labels of the MNIST data-set by training a classification RBM. We can use the `RBM()` function again, the only difference is that we now also provide the labels as the *y* argument:
 
 ```R
 # First get the train labels of MNIST
@@ -141,9 +173,17 @@ Not bad for a first try with the RBM! An accuracy of 85%. We could further impro
 ## Stacking Restricted Boltzmann Machines
 
 ### Small intro
+So now that we have worked with the regular RBM and the classification RBM we are going to make the model a little bit more complex by *stacking* up RBMs to create a *deep* network structure. It turns out that this can be done quite easily by training each RBM on the output of the last RBM (Hinton, Osindero & Teh, 2006). The procedure is as follows: you start by training a RBM on the original data until convergence and then use the output (hidden nodes) of this RBM as input for training the next RBM. This procedure is repeated until the desired number of layers has been reached, the following image from the [University of Montreal](http://www.iro.umontreal.ca/~lisa/twiki/bin/view.cgi/Public/DeepBeliefNetworks) illustrates this process nicely:
+
+<div style="text-align:center"><img src="StackedRBMIl.png" alt="drawing" style="width: 500px;"/></div>
+
+In general stacking RBMs is only used as a greedy pretraining method for training a Deep Belief Network as the top layers of a stacked RBM have no influence on the lower level model weights. However, this model should still learn more complex features than a regular RBM. 
+
+Lets put it to the test!
+
 
 ### Using `StackRBM()`
-Now lets try and stack some layers of RBM's with the `StackRBM()` function, this function calls the `RBM()` function for training each layer and so the arguments are not much different, except for the added *layers* argument. With the layers argument you can define how many RBM's you want to stack and how many hidden nodes each hidden layer should have. Lets try it out:
+Now lets try and stack some layers of RBM with the `StackRBM()` function, this function calls the `RBM()` function for training each layer and so the arguments are not much different, except for the added *layers* argument. With the layers argument you can define how many RBM you want to stack and how many hidden nodes each hidden layer should have. Lets try it out:
 
 ```R
 # Train a stacked RBM with three levels
@@ -154,15 +194,15 @@ modStack <- StackRBM(x = train, layers = c(100, 100, 100), n.iter = 1000, size.m
 
 Now that we have trained our stacked RBM with three layers (each of size 100), we can see how well it reconstructs data, again with the `ReconstructRBM()` function. Only this time we should also define the number of layers that were used to train the model:
 
-```
-# Add the layers argument when you have multiple layers of RBM's
+```R
+# Add the layers argument when you have multiple layers of RBM
 ReconstructRBM(test = test[6, ], model = modStack, layers = 3)
 ```
 The reconstruction looks quite reasonable:
 
 ![](StackRec.jpeg)
 
-We can also use the StackRBM function for a supervised model, `StackRBM()` does this by makking the last RBM layer a classification RBM as we discussed earlier. Lets fit a supervised stacked RBM:
+We can also use the StackRBM function for a supervised model, `StackRBM()` does this by making the last RBM layer a classification RBM as we discussed earlier. Lets fit a supervised stacked RBM:
 
 ```R
 # Add the labels as the y argument
@@ -178,7 +218,7 @@ The output:
 
 ![](StackOut.png)
 
-Stacking RBM's improves our classification performance with 1% as compared to the normal RBM. Stacking RBM's is not a very elegant method though as each RBM layer is trained on the output of the last layer and all the other RBM weights are frozen. It is a greedy method that will not give us the most optimal results for classification. That is why it is normally only used as a greedy pretrain algorithm to get good starting parameters. In the next part we will fit a Deep Belief Network, which finetunes a stacked RBM model with backpropogation using the labels as the criterion. 
+Stacking RBM improves our classification performance with 1% as compared to the normal RBM. Stacking RBM is not a very elegant method though as each RBM layer is trained on the output of the last layer and all the other RBM weights are frozen. It is a greedy method that will not give us the most optimal results for classification. That is why it is normally only used as a greedy pretrain algorithm to get good starting parameters. In the next part we will fit a Deep Belief Network, which finetunes a stacked RBM model with backpropogation using the labels as the criterion. 
 
 
 <a name="DBN"/>
@@ -189,13 +229,13 @@ Stacking RBM's improves our classification performance with 1% as compared to th
 
 ### Using `DBN()`
 
-Now lets try to fit a Deep Belief Network with the `DBN()` function. This could will take a bit longer but should normally not take more than a couple of minutes:
+Now lets try to fit a Deep Belief Network with the `DBN()` function. This will take a bit longer but should normally not take more than a couple of minutes:
 
 ```R
 # Fit the DBN model
 modDBN <- DBN(x = train, y = TrainY, n.iter.pre = 300, n.iter = 1000, nodes = c(500, 300, 150), size.minibatch = 10)
 ```
-As can be seen above running the DBN model takes some more parameters and I would highly recommend first looking at the help page (`?DBN`) to see what each argument does. Not only do you need to define the arguments for fitting the DBN but you also need to define the arguments for pretraining that are passed on to `StackRBM()`. First the function trains a stack of unsupervised RBM's to get weights in the right ball park. After that `DBN()` adds a layer of weights at the end of the model and finetunes the entire system with backpropagation and batch gradient descent. Because the `DBN()` adds a layer of weights the end model is always the number of layers that were defined in the nodes argument + 1, so in this example we end up with a 4 layer DBN. 
+As can be seen above running the DBN model takes some more parameters and I would highly recommend first looking at the help page (`?DBN`) to see what each argument does. Not only do you need to define the arguments for fitting the DBN but you also need to define the arguments for pretraining that are passed on to `StackRBM()`. First the function trains a stack of unsupervised RBM to get the weights in the right ball park. After that `DBN()` adds a layer of weights at the end of the model and finetunes the entire system with backpropagation and batch gradient descent. Because the `DBN()` adds a layer of weights the end model is always the number of layers that were defined in the nodes argument + 1, so in this example we end up with a 4 layer DBN. 
 
 We can now check how well our model classifies on unseen data. To do this we run the `PredictDBN()` function remember when inputting the number of layers that the DBN now has a label layer on top:
 
@@ -208,6 +248,8 @@ The output:
 ![](OutDBN.png)
 
 Alright we improved our classification performance with almost 2% compared to the stacked RBM! Hopefully this readme document helped with getting an understanding of what the package does and how it can be used, you can always just check the help files of the functions in the package if you forgot something or want to know all the possibilities. Feel free to play around with the parameters of the model and see whether you can improve the classification performance in this readme! 
+
+
 
 
 
