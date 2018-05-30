@@ -77,7 +77,8 @@ Although RBMs belong to the family of Boltzmann Machines; they are not the same 
 
 The actual function that is being minimized with contrastive divergence is the *energy* of the system. RBMs are energy models and in general a good model has a *low* energy. The energy is a function of the hidden nodes, weights between the hidden and visible layers and the bias terms (similar to the intercept in regression) of the model. Below is the equation for calculating the energy:
 
-$E(x,h)=-h^TWx-b^Tx-c^Th$
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;E(x,h)=-h^TWx-b^Tx-c^Th" title="\Large E(x,h)=-h^TWx-b^Tx-c^Th" />
+
 
 In this equation *x* stands for the visible nodes, *h* for the hidden nodes, *W* are the weights (parameters) of the model, *b* is the bias of the visible nodes and *c* is the hidden node bias. Do not worry we will not go into more mathematical detail.
 
@@ -138,7 +139,8 @@ In the previous chapter we discussed the RBM as a generative model, which was al
 
 So the only change that is made with regards to the original RBM is that the model now also has label weights and biases. After training the system, again with contrastive divergence, each possible label can be tried in combination with the data and the model picks the label that has the lowest energy out of all the labels. The energy function now looks as follows:
 
-$E(\boldsymbol{y},x,h)=-h^TWx-b^Tx-c^Th-\boldsymbol{d^Ty-h^tUy}$
+<img src="https://latex.codecogs.com/svg.latex?\Large&space;E(\boldsymbol{y},x,h)=-h^TWx-b^Tx-c^Th-\boldsymbol{d^Ty-h^tUy}" title="\Large E(\boldsymbol{y},x,h)=-h^TWx-b^Tx-c^Th-\boldsymbol{d^Ty-h^tUy}" />
+
 
 The parts in bold are the parts that are added to the energy function and represent the labels (*y*), label weights (*U*) and label bias (*d*).
 
