@@ -17,13 +17,15 @@
 #'@param n.iter.pre Past on to the StackRBM function, defines the how many epochs are used to pretrain each
 #'RBM layer.
 #'@param learning.rate.pre The pretraining learning rate, passed on to the StackRBM function. 
+#'@param verbose Whether to print th training error at each epoch, printing will slow down the fitting.
 #'
 #'@return Returns the finetuned DBN model that can be used in the PredictDBN function.
 #'
 #'@export
 # Initialize the DBN function
 DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
-                      learning.rate = 0.5, size.minibatch = 10, n.iter.pre = 30, learning.rate.pre = .1) {
+                      learning.rate = 0.5, size.minibatch = 10, n.iter.pre = 30, learning.rate.pre = .1,
+                verbose = FALSE) {
 
  
   # Initialize weights with the pretrain algorithm
@@ -57,7 +59,7 @@ DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
   # Attach bias to data
   x <- cbind(1, x)
   # Start gradient descent
-  print(paste0('Starting gradient descent with ', n.iter, 'epochs.....'))
+  print(paste0('Starting gradient descent with ', n.iter, ' epochs.....'))
   
   # Add output layer to nodes
   nodes <- append(nodes, length(labels))
@@ -117,9 +119,10 @@ DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
                                   * log(1 - H[[length(nodes)]]))))
     J <- sum(J)
     
-    # Print cost at current epoch
-    print(paste0('Cost at epoch ', j, ' = ', J))
-    
+    if (verbose == TRUE) {
+      # Print cost at current epoch
+      print(paste0('Cost at epoch ', j, ' = ', J))
+    }
     # Compare label to actual label and backpropogate
     for (l in length(nodes):1) {
       if(l == length(nodes)) {
