@@ -70,15 +70,17 @@ Oke now we are ready to go on, lets start with the (easiest) model: the Restrict
 ### Small Intro
 Lets start with a small introduction on the Restricted Boltzmann Machine and it's uses. RBMs are undirected graphs ([graphical models](https://en.wikipedia.org/wiki/Graphical_model)) belonging to the family of [Boltzmann machines](https://en.wikipedia.org/wiki/Boltzmann_machine), they are used as *generative* data models (Hinton, 2010). RBMs can be used for data reduction (like PCA) and can also be adjusted for classification purposes (Larochelle et al., 2010). They consist of only two layers of nodes, namely, a *hidden* layer with hidden nodes and a *visible* layer consisting of nodes that represent the data. In most applications the visible layer is represented by binary units, in the examples of this Readme we use the pixel values of the MNIST data which are normalized so they lie between 0 and 1. You can see a graphical representation of the RBM below:
 
-
+<p align="center">
 <img src="RBM.png" width="200" height="400">
+</p>
 
 Although RBMs belong to the family of Boltzmann Machines; they are not the same as Boltzmann Machines. They are a restricted version of the Boltzmann Machine as the nodes within a layer can only have connections to nodes in a different layer. This seemingly small difference between the Boltzmann Machine and the RBM actually makes for a *huge* difference. Due to the lack of connections between nodes within the hidden and visible layers the RBM is a [complete bipartite graph](https://en.wikipedia.org/wiki/Bipartite_graph). Complete bipartite graphs have a nice property, namely, the nodes within a layer are conditionally independent given the other layer. This makes RBMs a lot easier and efficient to train than the original Boltzmann machine. As the nodes within a layer are conditionally independent of each other given the other layer we can sample all the nodes in the hidden layer given the visible layer at the same time and vice-versa. We can do this by performing Gibbs sampling, we set the visible layer to a random data sample and then sample the hidden layer from the visible layer (*positive phase*) and then reconstruct the visible layer by sampling the visible layer from the hidden layer (*negative phase*). in theory you repeat this process until the samples are coming from the the same distribution as the data (reach equilibrium). However, in the case of RBMs, Hinton (2002) showed that you only need to run Gibbs sampling for a couple of iterations before adjusting the weights and that this also works well and is a lot faster---this method is called *contrastive divergence* (CD). In fact, most RBM learning algorithms get great results by only running one iteration of CD (Hinton, 2010) and that is also what I did in the CD function that I wrote.
 
 The actual function that is being minimized with contrastive divergence is the *energy* of the system. RBMs are energy models and in general a good model has a *low* energy. The energy is a function of the hidden nodes, weights between the hidden and visible layers and the bias terms (similar to the intercept in regression) of the model. Below is the equation for calculating the energy:
 
+<p align="center">
 <img src="https://latex.codecogs.com/svg.latex?\Large&space;E(x,h)=-h^TWx-b^Tx-c^Th" title="\Large E(x,h)=-h^TWx-b^Tx-c^Th" />
-
+</p>
 
 In this equation *x* stands for the visible nodes, *h* for the hidden nodes, *W* are the weights (parameters) of the model, *b* is the bias of the visible nodes and *c* is the hidden node bias. Do not worry we will not go into more mathematical detail.
 
@@ -122,6 +124,7 @@ ReconstructRBM(test = test[6, ], model = modelRBM)
 
 The function will then output the original image with the reconstructed image next to it. If the model is any good the reconstructed image should look similar or even better than the original:
 
+
 ![](ReconThree.jpeg)
 
 Congratulations you trained a good generative model on the MNIST data-set! The model reconstruction looks even more like a three than the original image :)
@@ -135,12 +138,15 @@ Lets go on and see if we can train a RBM that is not only good at reconstructing
 ### Small Intro
 In the previous chapter we discussed the RBM as a generative model, which was also one of the original purposes. However, in this section we will also look at the RBM as a discriminative model. Larochelle et al. (2012) wrote a nice paper on this topic and their proposed method is very intuitive---at least I found it to be intuitive. Instead of only having one visible layer, which in the MNIST example consists of pixel values, they added a second visible layer---the (binarized) labels. The hidden layer is then a function of both the pixel values and the (binarized) labels. The following image, also from the Larochelle et al. (2012) paper, illustrates this nicely:
 
-<div style="text-align:center"><img src="ClasRBM.png" alt="drawing" style="width: 300px;"/></div>
+<p align="center">
+<img src="ClasRBM.png" width="300">
+</p>
 
 So the only change that is made with regards to the original RBM is that the model now also has label weights and biases. After training the system, again with contrastive divergence, each possible label can be tried in combination with the data and the model picks the label that has the lowest energy out of all the labels. The energy function now looks as follows:
 
+<p align="center">
 <img src="https://latex.codecogs.com/svg.latex?\Large&space;E(\boldsymbol{y},x,h)=-h^TWx-b^Tx-c^Th-\boldsymbol{d^Ty-h^tUy}" title="\Large E(\boldsymbol{y},x,h)=-h^TWx-b^Tx-c^Th-\boldsymbol{d^Ty-h^tUy}" />
-
+</p>
 
 The parts in bold are the parts that are added to the energy function and represent the labels (*y*), label weights (*U*) and label bias (*d*).
 
@@ -178,7 +184,9 @@ Not bad for a first try with the RBM! An accuracy of 85%. We could further impro
 ### Small intro
 So now that we have worked with the regular RBM and the classification RBM we are going to make the model a little bit more complex by *stacking* up RBMs to create a *deep* network structure. It turns out that this can be done quite easily by training each RBM on the output of the last RBM (Hinton, Osindero & Teh, 2006). The procedure is as follows: you start by training a RBM on the original data until convergence and then use the output (hidden nodes) of this RBM as input for training the next RBM. This procedure is repeated until the desired number of layers has been reached, the following image from the [University of Montreal](http://www.iro.umontreal.ca/~lisa/twiki/bin/view.cgi/Public/DeepBeliefNetworks) illustrates this process nicely:
 
-<div style="text-align:center"><img src="StackedRBMIl.png" alt="drawing" style="width: 500px;"/></div>
+<p align="center">
+<img src="StackedRBMIl.png" width="500">
+</p>
 
 In general stacking RBMs is only used as a greedy pretraining method for training a Deep Belief Network as the top layers of a stacked RBM have no influence on the lower level model weights. However, this model should still learn more complex features than a regular RBM. 
 
