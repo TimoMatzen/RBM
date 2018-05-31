@@ -17,9 +17,12 @@ The original purpose of this project was to create a working implementation of t
   4. [Stacking Restricted Boltzmann Machines](#Stack)
       1. Small Intro
       2. Using `StackRBM()` 
-  5. [Deep Belief Model](#DBN)
+  5. [Deep Belief Network](#DBN)
       1. Small Intro 
       2. Using `DBN()` 
+  7.   [Some helpful links](#links)
+  6.   [References](#ref)
+  
 
 <a name="installation"/>
 
@@ -47,7 +50,7 @@ I have included the MNIST dataset as an example dataset in my package to get you
 
 ```R
 # Load the MNIST data
-MNIST <- data(MNIST)
+data(MNIST)
 ```
 
 Lets also check for a moment whether the data looks like it is supposed to look:
@@ -188,13 +191,13 @@ So now that we have worked with the regular RBM and the classification RBM we ar
 <img src="StackedRBMIl.png" width="500">
 </p>
 
-In general stacking RBMs is only used as a greedy pretraining method for training a Deep Belief Network as the top layers of a stacked RBM have no influence on the lower level model weights. However, this model should still learn more complex features than a regular RBM. 
+In general, stacking RBMs is only used as a greedy pretraining method for training a Deep Belief Network as the top layers of a stacked RBM have no influence on the lower level model weights. However, this model should still learn more complex features than a regular RBM. 
 
 Lets put it to the test!
 
 
 ### Using `StackRBM()`
-Now lets try and stack some layers of RBM with the `StackRBM()` function, this function calls the `RBM()` function for training each layer and so the arguments are not much different, except for the added *layers* argument. With the layers argument you can define how many RBM you want to stack and how many hidden nodes each hidden layer should have. Lets try it out:
+Now lets try and stack some layers of RBM with the `StackRBM()` function, this function calls the `RBM()` function for training each layer and so the arguments are not much different, except for the added *layers* argument. With the layers argument you can define how many RBMs you want to stack and how many hidden nodes each hidden layer should have. Lets try it out:
 
 ```R
 # Train a stacked RBM with three levels
@@ -229,14 +232,23 @@ The output:
 
 ![](StackOut.png)
 
-Stacking RBM improves our classification performance with 1% as compared to the normal RBM. Stacking RBM is not a very elegant method though as each RBM layer is trained on the output of the last layer and all the other RBM weights are frozen. It is a greedy method that will not give us the most optimal results for classification. That is why it is normally only used as a greedy pretrain algorithm to get good starting parameters. In the next part we will fit a Deep Belief Network, which finetunes a stacked RBM model with backpropogation using the labels as the criterion. 
+Stacking RBMs improves our classification performance with 1% as compared to the normal RBM. However, stacking RBMs is not a very elegant method though as each RBM layer is trained on the output of the last layer and all the other RBM weights are frozen. It is a greedy method that will not give us the most optimal results for classification. That is why it is normally only used as a greedy pretrain algorithm to get good starting parameters. In the next part we will fit a Deep Belief Network, which finetunes a stacked RBM model with backpropogation using the labels as the criterion. 
 
 
 <a name="DBN"/>
 
-## Deep Belief Model
+## Deep Belief Network
 
 ### Small Intro
+So lets move on to a more elegant method, namely, the Deep Belief Network (DBN). This model was originally developed by Hinton et al. (1995) and was originally trained with the *sleep-wake algorithm*, without pretraining. However, in 2006 Hinton et al. found a method that is more efficient at training DBNs by first training a stacked RBM and then use these parameters as good starting parameters for training the DBN. The DBN then adds a layer of labels at the end of the model and uses either backpropogation or the wake sleep algorithm to finetune the system with the labels as the criterion---the 'DBN()' function in the RBM package uses the backpropagation algorithm. The backpropagation algorithm works as follows: (1) first a feed-forward pass is made trough all the hidden layers ending at the output layer (2) then the output is compared to the actual label and (3) the error is used to adjust the weights in all the layers by going back (backpropogate) through the entire system. This process is repeated until some stopping criterion is reached, in the `DBN()` function that is the maximum number of epochs but it could als be the prediction error on a validation set. The following image from the Hinton et al. (2006) paper shows this nicely: 
+
+<p align="center">
+<img src="DBN.png" width="500" height="200">
+</p>
+
+There is also a really helpful and short [scholarpedia](http://scholarpedia.org/article/Deep_belief_networks) on DBNs written by Geoffrey Hinton himself.
+
+Without  further ado, lets built our own DBN model with the `DBN()` function!
 
 ### Using `DBN()`
 
@@ -261,15 +273,33 @@ The output:
 Alright we improved our classification performance with almost 2% compared to the stacked RBM! Hopefully this readme document helped with getting an understanding of what the package does and how it can be used, you can always just check the help files of the functions in the package if you forgot something or want to know all the possibilities. Feel free to play around with the parameters of the model and see whether you can improve the classification performance in this readme! 
 
 
+<a name="links"/>
 
+# Some Helpful Links
+If you read this entire document and feel that you are still interested in RBMs and DBNs, here are some links that I found very helpful :)
 
+A good blog on RBMs by Edward Chen:
+[RBM Chen](http://blog.echen.me/2011/07/18/introduction-to-restricted-boltzmann-machines/)
 
-### Ergens ook een linkje naar handige filmpjes voor RBM
+A helpful video on RBMs and DBNs by Geoffrey Hinton:
+[RBM Hinton](https://www.youtube.com/watch?v=mSh0Wu9dNsA);
+[DBN Hinton](https://www.youtube.com/watch?v=tM2QtkiXKxE)
 
+Or the video by Hugo Larochelle on the RBM and contrastive divergence:
+[RBM and CD](https://www.youtube.com/watch?v=MD8qXWucJBY)
 
+<a name="ref"/>
 
+# References
 
+1. Hinton, G. E. (2002). Training products of experts by minimizing contrastive divergence. Neural computation, 14(8), 1771-1800. 
 
+2. Hinton, G. E., Osindero, S., & Teh, Y. W. (2006). A fast learning algorithm for deep belief nets. Neural computation, 18(7), 1527-1554.
 
+3. Hinton, G. E. (2010). A practical guide to training restricted Boltzmann machines. In Neural networks: Tricks of the trade (pp. 599-619). Springer, Berlin, Heidelberg.
+
+4. Hinton, G. E., Dayan, P., Frey, B. J., & Neal, R. M. (1995). The" wake-sleep" algorithm for unsupervised neural networks. Science, 268(5214), 1158-1161.
+
+5. Larochelle, H., Mandel, M., Pascanu, R., & Bengio, Y. (2012). Learning algorithms for the classification restricted boltzmann machine. Journal of Machine Learning Research, 13(Mar), 643-669.
 
 
