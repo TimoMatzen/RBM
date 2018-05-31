@@ -7,7 +7,7 @@ Description: This is a package for training Restricted Boltzman machines, stacke
   Deep Belief Networks on binary data. All models can be trained in a supervised manner and the package includes predict functions
   to get model predictions on an unseen test-set. The package also includes the ReconstructRBM function that can be used to 
   reconstruct images with either a RBM model or a stacked RBM model (unsupervised).
-Depends: R (>= 3.4.0)
+Depends: R (>= 3.2.0)
 License: MIT
 Encoding: UTF-8
 LazyData: true
