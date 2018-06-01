@@ -1,3 +1,5 @@
+# TODO: Make function faster (RCPP)
+
 #' Restricted Boltzmann Machine
 #' 
 #' Trains a Restricted Boltzmann Machine on binary data, either supervised 
@@ -18,6 +20,24 @@
 #'  
 #'@export
 #'  
+#'@examples
+#'
+#'# Load the MNIST data
+#'data(MNIST)
+#'
+#'# Fit unsupervised RBM with the MNIST data
+#'modelRBM <- RBM(MNIST$trainX, n.iter = 1000, n.hidden = 30, learning.rate = 0.1, 
+#'plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001)
+#'
+#'# Fit a supervised RBM with the MNIST data
+#'modelRBMSup <- RBM(MNIST$trainX, MNIST$trainY, n.iter = 1000, n.hidden = 30, learning.rate = 0.1, 
+#'plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001)
+#'
+#'# Add more weight decay when training more parameters
+#'modelRBMSup <- RBM(MNIST$trainX, MNIST$trainY, n.iter = 1000, n.hidden = 100, learning.rate = 0.1, 
+#'plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.1)
+#'
+#'
 ## Initialize RBM function
 RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1, 
                  plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001) {
@@ -37,22 +57,25 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
     plot.epoch <- FALSE
   }
   
-  # Some error messages
+  # Some checks
   if (!is.matrix(x)) {
-    warning('Data was not in a matrix, converted data to matrix')
+    warning('Data was not in a matrix, converted data to a matrix')
     x <- as.matrix(x)
   }
-  if (any(!is.numeric(train))) {
-    stop('Sorry the data has non-numeric values, the function is executed')
+  if (any(!is.numeric(x))) {
+    stop('Sorry the data has non-numeric values, the function is terminated')
+  }
+  if (n.iter > 10000) {
+    warning("Number of epochs for > 10000, could take a while to fit")
   }
   if (!missing(y)) {
     if (any(!is.numeric(y))) {
-      stop('Sorry the labels have non-numeric values, the function is executed')
+      stop('Sorry the labels have non-numeric values, the function is terminated')
     }
     if (any(!is.finite(y))) {
       stop('Sorry this function cannot handle NAs or non-finite label values')
     }
-    if (length(y) != nrow(train)) {
+    if (length(y) != nrow(x)) {
       stop('Labels and data should be equal for supervised RBM: try training an unsupervised RBM')
     }
   }
@@ -62,6 +85,9 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
   if (size.minibatch > 100) {
     warning('Sorry the size of the minibatch is too long: resetting to 10')
     size.minibatch <- 10
+  } 
+  if (size.minibatch > 20) {
+    warning('Large minibatch size, could take a long time to fit model')
   } 
   if (min(x) < 0 | max(x) > 1) {
     stop('Sorry the data is out of bounds, should be between 0 and 1')

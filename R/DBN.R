@@ -1,6 +1,7 @@
 # TODO: Add regularisation.
 # TODO: Add momentum.
 # TODO: Make function faster (RCPP)
+# TODO: Make option for Wake Sleep algorithem Hinton et al. (1995)
 
 #' Deep Belief Network
 #' 
@@ -14,7 +15,7 @@
 #'@param nodes A vector with the number of hidden nodes at each layer
 #'@param learning.rate Learning rate for supervised finetuning of Stacked RBM.
 #'@param size.minibatch The size of the minibatches used for training. 
-#'@param n.iter.pre Past on to the StackRBM function, defines the how many epochs are used to pretrain each
+#'@param n.iter.pre Past on to the StackRBM function, defines how many epochs are used to pretrain each
 #'RBM layer.
 #'@param learning.rate.pre The pretraining learning rate, passed on to the StackRBM function. 
 #'@param verbose Whether to print th training error at each epoch, printing will slow down the fitting.
@@ -22,12 +23,71 @@
 #'@return Returns the finetuned DBN model that can be used in the PredictDBN function.
 #'
 #'@export
+#'
+#'@examples
+#'# Load the MNIST dat
+#'data(MNIST)
+#'
+#'# Train the DBN model
+#'modDBN <- DBN(MNIST$trainX, MNIST$trainY,n.iter = 500, nodes = c(500, 300, 150), learning.rate = 0.5,
+#'size.minibatch = 10, n.iter.pre = 300, learning.rate.pre = 0.1, verbose = FALSE)
+#'
+#'# Turn Verbose on to check the learning progress
+#'modDBN <- DBN(MNIST$trainX, MNIST$trainY,n.iter = 500, nodes = c(500, 300, 150), learning.rate = 0.5,
+#'size.minibatch = 10, n.iter.pre = 300, learning.rate.pre = 0.1, verbose = TRUE)
+#'
 # Initialize the DBN function
 DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
                       learning.rate = 0.5, size.minibatch = 10, n.iter.pre = 30, learning.rate.pre = .1,
                 verbose = FALSE) {
-
- 
+  
+  if (missing(y)) {
+    stop("Please provide the labels for training a DBN or train a unsupervised stacked RBM.")
+  }
+  if (!is.matrix(x)) {
+    warning('Data was not in a matrix, converted data to a matrix')
+    x <- as.matrix(x)
+  }
+  if (any(!is.numeric(x))) {
+    stop('Sorry the data has non-numeric values, the function is terminated')
+  }
+  if (!missing(y)) {
+    if (any(!is.numeric(y))) {
+      stop('Sorry the labels have non-numeric values, the function is terminated')
+    }
+    if (any(!is.finite(y))) {
+      stop('Sorry this function cannot handle NAs or non-finite label values')
+    }
+    if (length(y) != nrow(x)) {
+      stop('Labels and data should be equal for supervised RBM: try training an unsupervised RBM')
+    }
+  }
+  if (any(!is.finite(x))) {
+    stop('Sorry this function cannot handle NAs or non-finite data')
+  }
+  if (size.minibatch > 100) {
+    warning('Sorry the size of the minibatch is too long: resetting to 10')
+    size.minibatch <- 10
+  } 
+  if (size.minibatch > 20) {
+    warning('Large minibatch size, could take a long time to fit model')
+  } 
+  if (min(x) < 0 | max(x) > 1) {
+    stop('Sorry the data is out of bounds, should be between 0 and 1')
+  }
+  if( length(dim(x)) < 2 ) {
+    stop("Dimensions of the data were not right, should be of shape n.features * n.samples")
+  }
+  if(ncol(x) > nrow(x)) {
+    warning('Less data than features, this will probably result in a bad model fit')
+  }
+  if (n.iter.pre > 10000) {
+    warning("Number of epochs for each RBM > 10000, could take a while to fit")
+  }
+  if (n.iter > 10000) {
+    warning('Number of epochs for finetuning > 10000, could take a while to fit')
+  }
+  
   # Initialize weights with the pretrain algorithm
   print(paste0('Starting greedy pretraining with ', n.iter.pre, ' epochs for each RBM layer....'))
   weights <- StackRBM(x,  n.iter= n.iter.pre, layers = nodes, 

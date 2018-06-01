@@ -34,3 +34,22 @@ A list with the trained weights of the RBM that can be used for the predict RBM 
 Trains a Restricted Boltzmann Machine on binary data, either supervised 
 or unsupervised. This function uses contrastive diversion with k = 1 for training the system.
 }
+\examples{
+
+# Load the MNIST data
+data(MNIST)
+
+# Fit unsupervised RBM with the MNIST data
+modelRBM <- RBM(MNIST$trainX, n.iter = 1000, n.hidden = 30, learning.rate = 0.1, 
+plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001)
+
+# Fit a supervised RBM with the MNIST data
+modelRBMSup <- RBM(MNIST$trainX, MNIST$trainY, n.iter = 1000, n.hidden = 30, learning.rate = 0.1, 
+plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001)
+
+# Add more weight decay when training more parameters
+modelRBMSup <- RBM(MNIST$trainX, MNIST$trainY, n.iter = 1000, n.hidden = 100, learning.rate = 0.1, 
+plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.1)
+
+
+}

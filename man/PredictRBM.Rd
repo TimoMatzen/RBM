@@ -4,7 +4,7 @@
 \alias{PredictRBM}
 \title{Predict RBM}
 \usage{
-PredictRBM(test, labels, model, layers)
+PredictRBM(test, labels, model, layers = 2)
 }
 \arguments{
 \item{test}{Is the test-data (matrix) on which the user wants to make predictions.}
@@ -21,4 +21,14 @@ A list with a confusion matrix and the accuracy of the predictions.
 \description{
 Function for predicting on a test set with either a classification RBM (trained with the RBM function) or a 
 stacked RBM with a classification RBM on top (trained with StackRBM).
+}
+\examples{
+# Load MNIST data
+data(MNIST)
+
+# First train supervised RBM or StackedRBM
+mod <- RBM(MNIST$trainX, MNIST$trainY, n.iter = 1000, n.hidden = 1000)
+
+# Then use PredictRBM to make predictions
+PredictRBM(MNIST$testX, MNIST$testY, model = mod)
 }

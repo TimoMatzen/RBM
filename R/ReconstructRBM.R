@@ -9,14 +9,41 @@
 #'@return A plot of the original and reconstructed image (model) side by side.
 #'
 #'@export
+#'
+#'@examples
+#'# Load MNIST data
+#'data(MNIST)
+#'
+#'# Fit unsupervised RBM 
+#'mod <- RBM(MNIST$trainX, n.iter = 1000, n.hidden = 100)
+#'
+#'# Reconstruct a training image
+#'ReconstructRBM(MNIST$testX[6, ], model = mod)
+#'
+#'
 
-ReconstructRBM <- function(test, model, layers) {
+ReconstructRBM <- function(test, model, layers = 1) {
   if (!missing(layers)) {
     if ( layers == 1) {
       warning('Layers is 1, will treat the model as a regular RBM. 
             If the model is a stacked RBM only the first layer weights will be used')
     }
   }
+  if (!is.null(dim(test))) {
+    stop('It is only possible te reconstruct one training image at a time')
+  }
+  if (any(!is.numeric(test))) {
+    stop('Sorry the data has non-numeric values, the function is executed')
+  }
+  if (any(!is.finite(test))) {
+    stop('Sorry this function cannot handle NAs or non-finite data')
+  }
+  
+  if (length(model)  != layers) {
+    stop("Number of layers is unequal to the number of weight matrices in the model")
+  } 
+  
+  
   test <- matrix(test, nrow = 1)
   
   # Add bias term to visible layer
@@ -50,7 +77,7 @@ ReconstructRBM <- function(test, model, layers) {
   # Plot original
   image(matrix(V[, -1], nrow = sqrt(ncol(test))))
   title(main = 'Original Image', font.main = 4)
-  # Plot reconstruction model
+  # Plot reconstructed image
   image(matrix(V.rec[, -1], nrow = sqrt(ncol(test))))
   title(main = 'Reconstruction Model', font.main = 4)
 }

@@ -173,6 +173,7 @@ CD <- function(vis, weights, y, y.weights) {
 
 # Function for binarizing label data
 # 
+# TODO: Replace loop by C++ loop (rcpp?)
 # @keyword internal
 # Function for binarizing labels:
 LabelBinarizer <- function(labels) {
@@ -184,7 +185,7 @@ LabelBinarizer <- function(labels) {
   #   Matrix with binarized vectors for the labels that can be used in the RBM function
   #
   # Initialize matrix to save label vectors:
-  y <- matrix(0, length(labels), 10)
+  y <- matrix(0, length(labels), length(unique(labels)))
   for (i in 1:length(labels)) {
     # Put a one on position of the number in vector:
     y[i, labels[i] + 1] <- 1

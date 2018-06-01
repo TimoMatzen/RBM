@@ -4,7 +4,7 @@
 \alias{ReconstructRBM}
 \title{Reconstruct RBM}
 \usage{
-ReconstructRBM(test, model, layers)
+ReconstructRBM(test, model, layers = 1)
 }
 \arguments{
 \item{test}{A test example to reconstruct, works only with one example.}
@@ -18,4 +18,16 @@ A plot of the original and reconstructed image (model) side by side.
 }
 \description{
 Reconstructs an input image with a trained RBM or stacked RBM.
+}
+\examples{
+# Load MNIST data
+data(MNIST)
+
+# Fit unsupervised RBM 
+mod <- RBM(MNIST$trainX, n.iter = 1000, n.hidden = 100)
+
+# Reconstruct a training image
+ReconstructRBM(MNIST$testX[6, ], model = mod)
+
+
 }

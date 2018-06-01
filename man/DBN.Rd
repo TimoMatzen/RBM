@@ -21,7 +21,7 @@ DBN(x, y, n.iter = 300, nodes = c(30, 40, 30), learning.rate = 0.5,
 
 \item{size.minibatch}{The size of the minibatches used for training.}
 
-\item{n.iter.pre}{Past on to the StackRBM function, defines the how many epochs are used to pretrain each
+\item{n.iter.pre}{Past on to the StackRBM function, defines how many epochs are used to pretrain each
 RBM layer.}
 
 \item{learning.rate.pre}{The pretraining learning rate, passed on to the StackRBM function.}
@@ -35,4 +35,17 @@ Returns the finetuned DBN model that can be used in the PredictDBN function.
 Trains a deep belief network starting with a greedy pretrained stack of RBM's (unsupervised) using the function
 StackRBM and then DBN adds a supervised output layer. The stacked RBM is then finetuned on the supervised criterion
 by using backpropogation.
+}
+\examples{
+# Load the MNIST dat
+data(MNIST)
+
+# Train the DBN model
+modDBN <- DBN(MNIST$trainX, MNIST$trainY,n.iter = 500, nodes = c(500, 300, 150), learning.rate = 0.5,
+size.minibatch = 10, n.iter.pre = 300, learning.rate.pre = 0.1, verbose = FALSE)
+
+# Turn Verbose on to check the learning progress
+modDBN <- DBN(MNIST$trainX, MNIST$trainY,n.iter = 500, nodes = c(500, 300, 150), learning.rate = 0.5,
+size.minibatch = 10, n.iter.pre = 300, learning.rate.pre = 0.1, verbose = TRUE)
+
 }

@@ -27,9 +27,20 @@ StackRBM(x, y, n.iter = 100, layers = c(100, 100, 30),
 }
 \value{
 A list with the trained weights of the stacked RBM that can be used for the predict RBM function when a classification RBM is at
-the top layeror the ReconstructRBM function to reconstruct data with the model.
+the top layer of the ReconstructRBM function to reconstruct data with the model.
 }
 \description{
 Function to stack several Restricted Boltzmann Machines, trained greedily by training a RBM (using the RBM function) at each layer and
 then using the output of that RBM to train the next layer RBM.
+}
+\examples{
+# Load MNIST data
+data(MNIST)
+
+# Train a unsupervised Stack of 3 RBMs
+mod <- StackRBM(MNIST$trainX, layers = c(100,100,100))
+
+# Classification RBM as top layer
+modSup <- StackRBM(MNIST$trainX, MNIST$trainY, layers = c(100,100,100))
+
 }
