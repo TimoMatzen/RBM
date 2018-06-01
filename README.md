@@ -243,7 +243,7 @@ Stacking RBMs improves our classification performance with 1% as compared to the
 So lets move on to a more elegant method, namely, the Deep Belief Network (DBN). This model was originally developed by Hinton et al. (1995) and was originally trained with the *sleep-wake algorithm*, without pretraining. However, in 2006 Hinton et al. found a method that is more efficient at training DBNs by first training a stacked RBM and then use these parameters as good starting parameters for training the DBN. The DBN then adds a layer of labels at the end of the model and uses either backpropogation or the sleep-wake algorithm to finetune the system with the labels as the criterion---the `DBN()` function in the RBM package uses the backpropagation algorithm. The backpropagation algorithm works as follows: (1) first a feed-forward pass is made through all the hidden layers ending at the output layer (2) then the output is compared to the actual label and (3) the error is used to adjust the weights in all the layers by going back (backpropogate) through the entire system. This process is repeated until some stopping criterion is reached, in the `DBN()` function that is the maximum number of epochs but it could als be the prediction error on a validation set. The following image from the Hinton et al. (2006) paper shows this nicely: 
 
 <p align="center">
-<img src="DBN.png" width="500" height="200">
+<img src="DBN.png" width="500" height="400">
 </p>
 
 There is also a really helpful and short [scholarpedia](http://scholarpedia.org/article/Deep_belief_networks) on DBNs written by Geoffrey Hinton himself.
