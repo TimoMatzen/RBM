@@ -1,9 +1,14 @@
-DBN <- function(x, y, n.iter.pre = 30, n.iter = 300, nodes = c(30,40,30),
-                      learning.rate = 0.5, size.minibatch = 1, learning.rate.pre = .1) {
+# TODO: Add regularisation.
+# TODO: Add momentum.
+# TODO: Make function faster (RCPP)
+
+DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
+                      learning.rate = 0.5, size.minibatch = 10, n.iter.pre = 30, learning.rate.pre = .1) {
 
  
   # Initialize weights with the pretrain algorithm
-  weights <- PretrainGreedy(x,  n.iter= n.iter.pre, layers = nodes, 
+  print(paste0('Starting greedy pretraining with ', n.iter.pre, ' epochs for each RBM layer....'))
+  weights <- StackRBM(x,  n.iter= n.iter.pre, layers = nodes, 
                             learning.rate = learning.rate.pre, size.minibatch = size.minibatch )
   
   # Remove bias weights in opposite directions
@@ -28,14 +33,25 @@ DBN <- function(x, y, n.iter.pre = 30, n.iter = 300, nodes = c(30,40,30),
   
   # Attach bias to data
   x <- cbind(1, x)
-  
-  
-  # Start the wake sleep algorithm
+  # Start gradient descent
+  print(paste0('Starting gradient descent with ', n.iter, 'epochs.....'))
   for (j in 1:n.iter) {
     # Pick balanced labels
-    samp <- sample(1:nrow(x),size.minibatch)
+    #samp <- sample(1:nrow(x),size.minibatch)
     
-    # First perform one feed firward pass
+    # Pick balanced labels
+    samp <- rep(0,size.minibatch)
+    p <- 1
+    for (i in 1 : size.minibatch){
+      samp[p]<- sample(idx[[p]], 1)
+      p <- p + 1
+      if (p == length(labels) +1) {
+        # Reset counter
+        p <- 1
+      }
+    }
+    
+    # First perform one feed-forward pass
     # Sample vis from the data
     vis <- x[ samp, ,drop = FALSE]
     # Go to first hidden layer
@@ -44,6 +60,7 @@ DBN <- function(x, y, n.iter.pre = 30, n.iter = 300, nodes = c(30,40,30),
     hid <- rbind(1, hid)
     # Go to second hidden layer, first hidden layer as input
     pen <- logistic(weights[[2]]$trained.weights %*% hid)
+  
     # Fix the bias
     pen <- rbind(1, pen)
     
@@ -56,14 +73,14 @@ DBN <- function(x, y, n.iter.pre = 30, n.iter = 300, nodes = c(30,40,30),
     lab <- logistic(y.weights %*% top)
     
     # Calculate the cost
-    J <- 1/size.minibatch* (sum(-t(y[samp,,drop = FALSE]) * log(lab) - ((1 - t(y[samp,,drop = FALSE])) * log(1 - lab))))
+    J <- 1/size.minibatch* (sum(-t(y[samp,,drop = FALSE]) * 
+                                  log(lab) - ((1 - t(y[samp,,drop = FALSE])) 
+                                  * log(1 - lab))))
+   
     J <- sum(J)
     
     # Print cost
     print(paste0('Cost at epoch ', j, ' = ', J))
-    
-    # Stopping criterion
-    #if (J < 1) break
     
     # Compare label to actual label and backpropogate
     er.grad.lab <- logistic(lab) * (1 - logistic(lab)) * -(t(y[samp,,drop = FALSE]) -  lab)
@@ -86,25 +103,33 @@ DBN <- function(x, y, n.iter.pre = 30, n.iter = 300, nodes = c(30,40,30),
   
     # Adjust weights
     # hidden layer
-    grad.hid <- learning.rate  * 1/size.minibatch * (er.grad.hid %*% vis)
+    grad.hid <-  (1/size.minibatch * (er.grad.hid %*% vis)) 
+    
+    # Add regularisation
+    #grad.hid[, -1] <- grad.hid[, -1] + (lambda/size.minibatch * weights[[1]]$trained.weights[, -1])
+                                   
     # adjust weights hidden
-    weights[[1]]$trained.weights <- weights[[1]]$trained.weights - grad.hid  
+    weights[[1]]$trained.weights <- weights[[1]]$trained.weights - (learning.rate  * grad.hid)  
     
     # Pentative layer
-    grad.pen <- learning.rate * 1/size.minibatch * ( er.grad.pen %*% t(hid))
+    grad.pen <- (1/size.minibatch * ( er.grad.pen %*% t(hid))) 
+    #grad.pen[, -1] <- grad.pen[, -1] + (lambda/size.minibatch * weights[[2]]$trained.weights[, -1])    
+    
     # Adjust weights pentative layer
-    weights[[2]]$trained.weights <- weights[[2]]$trained.weights - grad.pen
+    weights[[2]]$trained.weights <- weights[[2]]$trained.weights - (learning.rate * grad.pen)
     
     # Top layer
-    grad.top <- learning.rate * 1/size.minibatch * (er.grad.top %*% t(pen))
+    grad.top <- (1/size.minibatch * (er.grad.top %*% t(pen))) 
+    # Add regularisation
+    #grad.top[, -1] <- grad.top[, -1] + (lambda/size.minibatch * weights[[3]]$trained.weights[, -1])
     # Adjust weights top layer
-    weights[[3]]$trained.weights <- weights[[3]]$trained.weights - grad.top
+    weights[[3]]$trained.weights <- weights[[3]]$trained.weights - (learning.rate * grad.top)
     
     # Label weights
-    grad.lab <- learning.rate * 1/size.minibatch * (er.grad.lab %*% t(top))
-    y.weights <- y.weights - grad.lab
-    
-    
+    grad.lab <- ( 1/size.minibatch * (er.grad.lab %*% t(top)))
+    # add regularisation
+    #grad.lab[, -1] <- grad.lab[, -1] + (lambda/size.minibatch * y.weights[, -1])
+    y.weights <- y.weights - (learning.rate * grad.lab)
     
   }
   # Add the label weights to the weights

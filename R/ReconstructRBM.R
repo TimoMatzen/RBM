@@ -25,7 +25,7 @@
 ReconstructRBM <- function(test, model, layers = 1) {
   if (!missing(layers)) {
     if ( layers == 1) {
-      warning('Layers is 1, will treat the model as a regular RBM. 
+      print('Layers is 1, will treat the model as a regular RBM. 
             If the model is a stacked RBM only the first layer weights will be used')
     }
   }

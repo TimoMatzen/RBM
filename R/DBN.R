@@ -40,12 +40,14 @@
 DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
                       learning.rate = 0.5, size.minibatch = 10, n.iter.pre = 30, learning.rate.pre = .1,
                 verbose = FALSE) {
-  
+  if (length(nodes) > 3) {
+    print("training a very large system, model will take longer to converge")
+  }
   if (missing(y)) {
     stop("Please provide the labels for training a DBN or train a unsupervised stacked RBM.")
   }
   if (!is.matrix(x)) {
-    warning('Data was not in a matrix, converted data to a matrix')
+    print('Data was not in a matrix, converted data to a matrix')
     x <- as.matrix(x)
   }
   if (any(!is.numeric(x))) {
@@ -66,11 +68,11 @@ DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
     stop('Sorry this function cannot handle NAs or non-finite data')
   }
   if (size.minibatch > 100) {
-    warning('Sorry the size of the minibatch is too long: resetting to 10')
+    print('Sorry the size of the minibatch is too long: resetting to 10')
     size.minibatch <- 10
   } 
   if (size.minibatch > 20) {
-    warning('Large minibatch size, could take a long time to fit model')
+    print('Large minibatch size, could take a long time to fit model')
   } 
   if (min(x) < 0 | max(x) > 1) {
     stop('Sorry the data is out of bounds, should be between 0 and 1')
@@ -79,13 +81,13 @@ DBN <- function(x, y, n.iter = 300, nodes = c(30,40,30),
     stop("Dimensions of the data were not right, should be of shape n.features * n.samples")
   }
   if(ncol(x) > nrow(x)) {
-    warning('Less data than features, this will probably result in a bad model fit')
+    print('Less data than features, this will probably result in a bad model fit')
   }
   if (n.iter.pre > 10000) {
-    warning("Number of epochs for each RBM > 10000, could take a while to fit")
+    print("Number of epochs for each RBM > 10000, could take a while to fit")
   }
   if (n.iter > 10000) {
-    warning('Number of epochs for finetuning > 10000, could take a while to fit')
+    print('Number of epochs for finetuning > 10000, could take a while to fit')
   }
   
   # Initialize weights with the pretrain algorithm

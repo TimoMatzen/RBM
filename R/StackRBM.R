@@ -33,20 +33,20 @@ StackRBM <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate =
   
   # Some checks
   if (!is.matrix(x)) {
-    warning('Data was not in a matrix, converted data to a matrix')
+    print('Data was not in a matrix, converted data to a matrix')
     x <- as.matrix(x)
   }
   if (length(layers) == 1) {
     stop('system has only one layer and is basically an RBM: please use the RBM function')
   }
   if (size.minibatch > 20) {
-    warning("minibatch size is very large, it could take very long to fit the model depending on the system.")
+    print("minibatch size is very large, it could take very long to fit the model depending on the system.")
   }
   if (length(layers) > 3) {
-    warning("training a very large system, model could will take longer to converge")
+    print("training a very large system, model will take longer to converge")
   }
   if (n.iter > 10000) {
-    warning("Number of epochs for each RBM > 10000, could take a while to fit")
+    print("Number of epochs for each RBM > 10000, could take a while to fit")
   }
   if (any(!is.numeric(x))) {
     stop('Sorry the data has non-numeric values, the function is executed')
@@ -66,10 +66,10 @@ StackRBM <- function(x, y, n.iter = 100, layers = c(100,100,30), learning.rate =
     }
   }
   if(ncol(x) > nrow(x)) {
-    warning('Less data than features, this will probably result in a bad model fit')
+    print('Less data than features, this will probably result in a bad model fit')
   }
   if (size.minibatch > 20) {
-    warning('Large minibatch size, could take a long time to fit model')
+    print('Large minibatch size, could take a long time to fit model')
   } 
     
   # Initialize list for the model parameters

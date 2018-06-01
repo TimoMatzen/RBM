@@ -59,14 +59,14 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
   
   # Some checks
   if (!is.matrix(x)) {
-    warning('Data was not in a matrix, converted data to a matrix')
+    print('Data was not in a matrix, converted data to a matrix')
     x <- as.matrix(x)
   }
   if (any(!is.numeric(x))) {
     stop('Sorry the data has non-numeric values, the function is terminated')
   }
   if (n.iter > 10000) {
-    warning("Number of epochs for > 10000, could take a while to fit")
+    print("Number of epochs for > 10000, could take a while to fit")
   }
   if (!missing(y)) {
     if (any(!is.numeric(y))) {
@@ -83,11 +83,11 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
     stop('Sorry this function cannot handle NAs or non-finite data')
   }
   if (size.minibatch > 100) {
-    warning('Sorry the size of the minibatch is too long: resetting to 10')
+    print('Sorry the size of the minibatch is too long: resetting to 10')
     size.minibatch <- 10
   } 
   if (size.minibatch > 20) {
-    warning('Large minibatch size, could take a long time to fit model')
+    print('Large minibatch size, could take a long time to fit model')
   } 
   if (min(x) < 0 | max(x) > 1) {
     stop('Sorry the data is out of bounds, should be between 0 and 1')
@@ -96,7 +96,7 @@ RBM <- function (x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
     stop("Dimensions of the data were not right, should be of shape n.features * n.samples")
   }
   if(ncol(x) > nrow(x)) {
-    warning('Less data than features, this will probably result in a bad model fit')
+    print('Less data than features, this will probably result in a bad model fit')
   }
   
   # Initialize the weights, n.features * n.hidden with values from gaussian distribution

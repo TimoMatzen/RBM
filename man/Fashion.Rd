@@ -18,17 +18,17 @@ This is the fashion MNIST dataset collected by Zalando. The datset consists of p
 digit recognizer dataset and can be used for all the functions in the RBM package.
 }
 \details{
-The labels are as follows:
-0: T-shirt/tops 
-1: Trouser
-2: Pullover
-3: Dress
-4: Coat
-5: Sandal
-6: Shirt
-7: Sneaker
-8: Bag
-9: Ankle Boot
+The labels are as follows: \cr
+0: T-shirt/tops \cr
+1: Trouser \cr
+2: Pullover \cr
+3: Dress \cr
+4: Coat \cr
+5: Sandal \cr
+6: Shirt \cr
+7: Sneaker \cr
+8: Bag \cr
+9: Ankle Boot \cr
 }
 \examples{
 # Load the data
