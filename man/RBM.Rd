@@ -5,7 +5,8 @@
 \title{Restricted Boltzmann Machine}
 \usage{
 RBM(x, y, n.iter = 100, n.hidden = 30, learning.rate = 0.1,
-  plot = FALSE, size.minibatch = 10, momentum = 0.5, lambda = 0.001)
+  plot = FALSE, size.minibatch = 10, momentum = 0.5,
+  lambda = 0.001)
 }
 \arguments{
 \item{x}{A matrix with binary features of shape samples * features.}
